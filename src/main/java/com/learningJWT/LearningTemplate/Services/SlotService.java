@@ -9,4 +9,5 @@ public interface SlotService {
     void deleteSlot(Long slotId) throws Exception;
     List<SlotDTO> getAllSlots() throws Exception;
     List<SlotDTO> getSlotsByPlan(Long planId) throws Exception;
+    List<SlotDTO> autoGenerateSlots(Long planId) throws Exception;
 }

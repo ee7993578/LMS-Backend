@@ -58,4 +58,14 @@ public class SlotController {
     public ResponseEntity<List<SlotDTO>> getSlotsByPlan(@PathVariable Long planId) throws Exception {
         return ResponseEntity.ok(slotService.getSlotsByPlan(planId));
     }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PostMapping("/auto-generate/{planId}")
+    public ResponseEntity<?> autoGenerateSlots(@PathVariable Long planId) {
+        try {
+            return ResponseEntity.ok(slotService.autoGenerateSlots(planId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

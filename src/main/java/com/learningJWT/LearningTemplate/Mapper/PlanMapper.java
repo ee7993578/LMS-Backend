@@ -13,6 +13,9 @@ public class PlanMapper {
                 .duration(plan.getDuration())
                 .price(plan.getPrice())
                 .libraryId(plan.getLibrary() != null ? plan.getLibrary().getId() : null)
+                .hoursPerDay(plan.getHoursPerDay())
+                .studyDays(plan.getStudyDays())
+                .subscriptionDays(plan.getSubscriptionDays())
                 .build();
     }
 
@@ -23,6 +26,9 @@ public class PlanMapper {
                 .name(dto.getName())
                 .duration(dto.getDuration())
                 .price(dto.getPrice())
+                .hoursPerDay(dto.getHoursPerDay())
+                .studyDays(dto.getStudyDays())
+                .subscriptionDays(dto.getSubscriptionDays())
                 .build();
     }
 }

@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/superadmin/library/create").permitAll()
                         .requestMatchers("/api/superadmin/plan").permitAll()
                         .requestMatchers("/api/libraryadmin/**").hasRole("LIBRARY_ADMIN")

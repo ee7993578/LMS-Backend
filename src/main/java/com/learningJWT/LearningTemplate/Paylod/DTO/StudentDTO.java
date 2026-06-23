@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -20,4 +22,6 @@ public class StudentDTO {
     private Long seatId;
     private String username;
     private String password;
+    private LocalDate dateOfJoin;
+    private LocalDate subscriptionExpiryDate; // computed: dateOfJoin + plan.subscriptionDays
 }

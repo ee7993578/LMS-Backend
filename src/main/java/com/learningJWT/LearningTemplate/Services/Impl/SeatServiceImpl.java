@@ -153,10 +153,25 @@ public class SeatServiceImpl implements SeatServices {
         Student student = studentRepository.findById(studentId).orElseThrow(() -> new Exception("Student not found"));
         if (!student.getLibrary().getId().equals(library.getId())) throw new Exception("Student not in your library");
 
-        // Check if student already has this exact slot allocated
-        seatAllocationRepository.findByStudentIdAndSlotIdAndActiveTrue(studentId, slotId).ifPresent(a -> {
-            throw new RuntimeException("Student already has an active allocation for this slot.");
-        });
+        // Check if student already has this exact slot allocated (on ANY seat)
+        Optional<SeatAllocation> existingSlotAlloc = seatAllocationRepository.findByStudentIdAndSlotIdAndActiveTrue(studentId, slotId);
+        if (existingSlotAlloc.isPresent()) {
+            SeatAllocation ea = existingSlotAlloc.get();
+            if (ea.getSeat().getId().equals(seatId)) {
+                throw new RuntimeException("ALREADY_ALLOCATED:Student already has this seat allocated for this slot. Please deallocate first.");
+            } else {
+                throw new RuntimeException("ALREADY_ALLOCATED:Student already has a different seat allocated for this slot. Please deallocate first.");
+            }
+        }
+
+        // Check if student already has an active allocation on this SAME seat (any slot) — prevent double slot on same seat
+        List<SeatAllocation> existingAllocs = seatAllocationRepository.findByStudentIdAndActiveTrue(studentId);
+        Optional<SeatAllocation> sameSeatAlloc = existingAllocs.stream()
+                .filter(a -> a.getSeat().getId().equals(seatId))
+                .findFirst();
+        if (sameSeatAlloc.isPresent()) {
+            throw new RuntimeException("ALREADY_ALLOCATED:Student already has an active allocation on this seat. Please deallocate first.");
+        }
 
         Seat seat = seatRepository.findById(seatId).orElseThrow(() -> new Exception("Seat not found"));
         if (!seat.getLibrary().getId().equals(library.getId())) throw new Exception("Seat not in your library");
@@ -169,10 +184,18 @@ public class SeatServiceImpl implements SeatServices {
         if (!slot.getLibrary().getId().equals(library.getId())) throw new Exception("Slot not in your library");
         if (!slot.getPlan().getId().equals(planId)) throw new Exception("Slot does not belong to selected plan");
 
-        // Check seat not already allocated for this slot by another student
+        // Check seat not already allocated for this slot by another student (FIXED mode)
         List<SeatAllocation> slotAllocs = seatAllocationRepository.findBySlotIdAndActiveTrue(slotId);
-        boolean seatTaken = slotAllocs.stream().anyMatch(a -> a.getSeat().getId().equals(seatId));
-        if (seatTaken) throw new Exception("Seat is already allocated for this slot");
+        boolean seatTakenFixed = slotAllocs.stream().anyMatch(a -> a.getSeat().getId().equals(seatId));
+        if (seatTakenFixed) throw new Exception("Seat is already allocated for this slot");
+
+        // Also check: if this seat has a FLEX allocation whose time overlaps with this slot's time
+        List<SeatAllocation> flexConflicts = seatAllocationRepository
+                .findOverlappingFlexAllocations(library.getId(), seatId, slot.getStartTime(), slot.getEndTime());
+        if (!flexConflicts.isEmpty()) {
+            throw new Exception("Seat has a flexible allocation that overlaps with this slot's time (" +
+                    slot.getStartTime() + " - " + slot.getEndTime() + ")");
+        }
 
         // Update seat and student refs
         seat.setStatus(SeatStatus.ALLOCATED);
@@ -202,12 +225,35 @@ public class SeatServiceImpl implements SeatServices {
         Student student = studentRepository.findById(studentId).orElseThrow(() -> new Exception("Student not found"));
         if (!student.getLibrary().getId().equals(library.getId())) throw new Exception("Student not in your library");
 
-        // Check student doesn't already have overlapping flex allocation
-        List<SeatAllocation> studentOverlaps = seatAllocationRepository
+        // Get all existing active allocations for this student
+        List<SeatAllocation> existingAllocs = seatAllocationRepository.findByStudentIdAndActiveTrue(studentId);
+
+        // Check if student already has an active allocation on this SAME seat — prevent double booking
+        Optional<SeatAllocation> sameSeatAlloc = existingAllocs.stream()
+                .filter(a -> a.getSeat().getId().equals(seatId))
+                .findFirst();
+        if (sameSeatAlloc.isPresent()) {
+            throw new RuntimeException("ALREADY_ALLOCATED:Student already has an active allocation on this seat. Please deallocate first.");
+        }
+
+        // Check student doesn't already have overlapping FLEX allocation on any seat
+        List<SeatAllocation> studentFlexOverlaps = seatAllocationRepository
                 .findOverlappingFlexAllocationsForStudent(library.getId(), studentId, startTime, endTime);
-        if (!studentOverlaps.isEmpty()) {
-            throw new Exception("Student already has an allocation during this time range: "
-                + studentOverlaps.get(0).getFlexStartTime() + " - " + studentOverlaps.get(0).getFlexEndTime());
+        if (!studentFlexOverlaps.isEmpty()) {
+            throw new Exception("Student already has a flexible allocation during this time range: "
+                + studentFlexOverlaps.get(0).getFlexStartTime() + " - " + studentFlexOverlaps.get(0).getFlexEndTime());
+        }
+
+        // Check student doesn't have a FIXED slot overlapping this flex time
+        for (SeatAllocation sa : existingAllocs) {
+            if (sa.getAllocationMode() == AllocationMode.FIXED_HOUR && sa.getSlot() != null) {
+                Slot existingSlot = sa.getSlot();
+                if (timesOverlapCheck(startTime, endTime, existingSlot.getStartTime(), existingSlot.getEndTime())) {
+                    throw new Exception("Student already has a fixed slot (" + existingSlot.getSlotName() +
+                            ": " + existingSlot.getStartTime() + " - " + existingSlot.getEndTime() +
+                            ") that overlaps with this time range");
+                }
+            }
         }
 
         Seat seat = seatRepository.findById(seatId).orElseThrow(() -> new Exception("Seat not found"));
@@ -216,10 +262,23 @@ public class SeatServiceImpl implements SeatServices {
 
         Plan plan = planRepository.findById(planId).orElseThrow(() -> new Exception("Plan not found"));
 
-        // Overlap check for this seat
-        List<SeatAllocation> seatOverlaps = seatAllocationRepository
+        // Overlap check for this seat (flex vs flex)
+        List<SeatAllocation> seatFlexOverlaps = seatAllocationRepository
                 .findOverlappingFlexAllocations(library.getId(), seatId, startTime, endTime);
-        if (!seatOverlaps.isEmpty()) throw new Exception("Seat already allocated during this time range");
+        if (!seatFlexOverlaps.isEmpty()) throw new Exception("Seat already has a flexible allocation during this time range");
+
+        // Cross-mode: check if this seat has a FIXED slot that overlaps this flex time
+        List<SeatAllocation> seatFixedAllocs = seatAllocationRepository.findBySeatIdAndActiveTrue(seatId)
+                .stream().filter(a -> a.getAllocationMode() == AllocationMode.FIXED_HOUR && a.getSlot() != null)
+                .collect(Collectors.toList());
+        for (SeatAllocation fixedAlloc : seatFixedAllocs) {
+            Slot fixedSlot = fixedAlloc.getSlot();
+            if (timesOverlapCheck(startTime, endTime, fixedSlot.getStartTime(), fixedSlot.getEndTime())) {
+                throw new Exception("Seat is already allocated for a fixed slot (" + fixedSlot.getSlotName() +
+                        ": " + fixedSlot.getStartTime() + " - " + fixedSlot.getEndTime() +
+                        ") that overlaps with this time range");
+            }
+        }
 
         seat.setStatus(SeatStatus.ALLOCATED);
         student.setSeat(seat);
@@ -245,12 +304,20 @@ public class SeatServiceImpl implements SeatServices {
         User admin = getLoggedInAdmin();
         Long libraryId = admin.getLibrary().getId();
 
+        Slot slot = slotRepository.findById(slotId).orElseThrow(() -> new Exception("Slot not found"));
+
         Set<Long> takenSeatIds = seatAllocationRepository.findBySlotIdAndActiveTrue(slotId)
                 .stream().map(a -> a.getSeat().getId()).collect(Collectors.toSet());
 
         return seatRepository.findByLibraryId(libraryId).stream()
                 .filter(s -> s.getStatus() != SeatStatus.UNDER_MAINTENANCE)
                 .filter(s -> !takenSeatIds.contains(s.getId()))
+                .filter(s -> {
+                    // Cross-mode: check if seat has flex allocation overlapping this slot's time
+                    List<SeatAllocation> flexOverlaps = seatAllocationRepository
+                            .findOverlappingFlexAllocations(libraryId, s.getId(), slot.getStartTime(), slot.getEndTime());
+                    return flexOverlaps.isEmpty();
+                })
                 .map(SeatMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -263,9 +330,21 @@ public class SeatServiceImpl implements SeatServices {
         return seatRepository.findByLibraryId(libraryId).stream()
                 .filter(s -> s.getStatus() != SeatStatus.UNDER_MAINTENANCE)
                 .filter(s -> {
-                    List<SeatAllocation> overlaps = seatAllocationRepository
+                    // Check flex-vs-flex conflicts
+                    List<SeatAllocation> flexOverlaps = seatAllocationRepository
                             .findOverlappingFlexAllocations(libraryId, s.getId(), startTime, endTime);
-                    return overlaps.isEmpty();
+                    if (!flexOverlaps.isEmpty()) return false;
+                    // Check cross-mode: fixed slots that overlap with requested flex time
+                    List<SeatAllocation> fixedAllocs = seatAllocationRepository.findBySeatIdAndActiveTrue(s.getId())
+                            .stream().filter(a -> a.getAllocationMode() == AllocationMode.FIXED_HOUR && a.getSlot() != null)
+                            .collect(Collectors.toList());
+                    for (SeatAllocation fa : fixedAllocs) {
+                        Slot fixedSlot = fa.getSlot();
+                        if (timesOverlapCheck(startTime, endTime, fixedSlot.getStartTime(), fixedSlot.getEndTime())) {
+                            return false;
+                        }
+                    }
+                    return true;
                 })
                 .map(SeatMapper::toDto)
                 .collect(Collectors.toList());
@@ -359,6 +438,13 @@ public class SeatServiceImpl implements SeatServices {
     }
 
     // ---- Helpers ----
+
+    /**
+     * Check if two time ranges overlap. Handles simple (non-midnight-crossing) ranges.
+     */
+    private boolean timesOverlapCheck(LocalTime s1, LocalTime e1, LocalTime s2, LocalTime e2) {
+        return s1.isBefore(e2) && s2.isBefore(e1);
+    }
 
     private void createFeeIfNew(Student student, Plan plan) {
         if (feeRepository.findByStudentIdAndLibraryId(student.getId(), student.getLibrary().getId()).isEmpty()) {

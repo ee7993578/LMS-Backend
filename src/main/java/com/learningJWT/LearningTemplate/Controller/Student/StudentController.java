@@ -10,12 +10,15 @@ import com.learningJWT.LearningTemplate.Paylod.DTO.StudentDTO;
 import com.learningJWT.LearningTemplate.Repository.AttendanceRepository;
 import com.learningJWT.LearningTemplate.Repository.StudentRepository;
 import com.learningJWT.LearningTemplate.Repository.UserRepository;
+import com.learningJWT.LearningTemplate.Services.PaymentProofService;
+import com.learningJWT.LearningTemplate.Services.PaymentSettingsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -29,6 +32,8 @@ public class StudentController {
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
     private final AttendanceRepository attendanceRepository;
+    private final PaymentSettingsService paymentSettingsService;
+    private final PaymentProofService paymentProofService;
 
     private User getLoggedInUser() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -106,6 +111,19 @@ public class StudentController {
         return ResponseEntity.ok(dto);
     }
 
+    /** GET /api/student/attendance-mode — returns library's attendance mode for this student */
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/attendance-mode")
+    public ResponseEntity<?> getAttendanceMode() throws Exception {
+        User user = getLoggedInUser();
+        Student student = studentRepository.findByUserId(user.getId());
+        if (student == null || student.getLibrary() == null) {
+            return ResponseEntity.ok(java.util.Map.of("attendanceMode", "BOTH"));
+        }
+        com.learningJWT.LearningTemplate.Enum.AttendanceMode mode = student.getLibrary().getAttendanceMode();
+        return ResponseEntity.ok(java.util.Map.of("attendanceMode", mode != null ? mode.name() : "BOTH"));
+    }
+
     /**
      * GET /api/student/leaderboard?period=month|week|all
      * Returns ranked list of students by study minutes for this library.
@@ -156,5 +174,45 @@ public class StudentController {
         }
 
         return ResponseEntity.ok(leaderboard);
+    }
+
+    // ===================== Deposit (admin's QR/UPI/phone) =====================
+
+    /** GET /api/student/payment-settings — shows the library's QR/UPI/phone/description for deposits */
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/payment-settings")
+    public ResponseEntity<?> getPaymentSettings() {
+        try {
+            return ResponseEntity.ok(paymentSettingsService.getSettingsForStudent());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // ===================== Payment Proof =====================
+
+    /** POST /api/student/payment-proof — submit a screenshot and/or description for a fee payment */
+    @PreAuthorize("hasRole('STUDENT')")
+    @PostMapping(value = "/payment-proof", consumes = "multipart/form-data")
+    public ResponseEntity<?> submitPaymentProof(
+            @RequestParam(value = "screenshot", required = false) MultipartFile screenshot,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "amountClaimed", required = false) Double amountClaimed) {
+        try {
+            return ResponseEntity.ok(paymentProofService.submitProof(screenshot, description, amountClaimed));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /** GET /api/student/payment-proofs — the logged-in student's own submission history */
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/payment-proofs")
+    public ResponseEntity<?> getMyPaymentProofs() {
+        try {
+            return ResponseEntity.ok(paymentProofService.getMyProofs());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }

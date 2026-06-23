@@ -1,6 +1,7 @@
 package com.learningJWT.LearningTemplate.Model;
 
 import com.learningJWT.LearningTemplate.Enum.AllocationMode;
+import com.learningJWT.LearningTemplate.Enum.AttendanceMode;
 import com.learningJWT.LearningTemplate.Enum.Status;
 import jakarta.persistence.*;
 import lombok.*;
@@ -33,6 +34,10 @@ public class Library {
     @Enumerated(EnumType.STRING)
     @Column(name = "allocation_mode")
     private AllocationMode allocationMode = AllocationMode.FLEXIBLE_HOUR;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "attendance_mode")
+    private AttendanceMode attendanceMode = AttendanceMode.BOTH;
 
     @Column(columnDefinition = "datetime")
     private LocalDateTime createdAt;

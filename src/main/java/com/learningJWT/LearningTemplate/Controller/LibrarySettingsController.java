@@ -1,6 +1,7 @@
 package com.learningJWT.LearningTemplate.Controller;
 
 import com.learningJWT.LearningTemplate.Enum.AllocationMode;
+import com.learningJWT.LearningTemplate.Enum.AttendanceMode;
 import com.learningJWT.LearningTemplate.Mapper.LibraryMapper;
 import com.learningJWT.LearningTemplate.Model.Library;
 import com.learningJWT.LearningTemplate.Model.User;
@@ -54,6 +55,7 @@ public class LibrarySettingsController {
         if (dto.getPhone() != null) library.setPhone(dto.getPhone());
         if (dto.getWebsite() != null) library.setWebsite(dto.getWebsite());
         if (dto.getAllocationMode() != null) library.setAllocationMode(dto.getAllocationMode());
+        if (dto.getAttendanceMode() != null) library.setAttendanceMode(dto.getAttendanceMode());
         library.setUpdatedAt(LocalDateTime.now());
 
         libraryRepository.save(library);

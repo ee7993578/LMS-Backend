@@ -12,7 +12,11 @@ import lombok.Data;
 public class PlanDTO {
     private Long id;
     private String name;
-    private Long duration;
+    private Long duration;         // subscription days
     private double price;
     private Long libraryId;
+    // NEW
+    private Integer hoursPerDay;
+    private Integer studyDays;
+    private Integer subscriptionDays;
 }

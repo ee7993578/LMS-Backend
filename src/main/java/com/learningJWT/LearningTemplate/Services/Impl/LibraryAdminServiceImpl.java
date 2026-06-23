@@ -11,8 +11,12 @@ import com.learningJWT.LearningTemplate.Mapper.StudentMapper;
 import com.learningJWT.LearningTemplate.Model.*;
 import com.learningJWT.LearningTemplate.Paylod.DTO.PlanDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.StudentDTO;
+import com.learningJWT.LearningTemplate.Enum.SeatStatus;
 import com.learningJWT.LearningTemplate.Repository.PlanRepository;
 import com.learningJWT.LearningTemplate.Repository.QRRepository;
+import com.learningJWT.LearningTemplate.Repository.SeatAllocationRepository;
+import com.learningJWT.LearningTemplate.Repository.SeatRepository;
+import com.learningJWT.LearningTemplate.Repository.SlotRepository;
 import com.learningJWT.LearningTemplate.Repository.StudentRepository;
 import com.learningJWT.LearningTemplate.Repository.UserRepository;
 import com.learningJWT.LearningTemplate.Services.LibraryAdminService;
@@ -25,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +44,9 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
     private final PasswordEncoder passwordEncoder;
     private final QRRepository qrRepository;
     private final PlanRepository planRepository;
+    private final SeatAllocationRepository seatAllocationRepository;
+    private final SeatRepository seatRepository;
+    private final SlotRepository slotRepository;
 
     private User getLoggedInAdmin() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -83,6 +91,8 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         student.setUser(studentUser);
         student.setCreatedAt(LocalDateTime.now());
         student.setUpdatedAt(LocalDateTime.now());
+        // Set date of join — use provided date or default to today
+        student.setDateOfJoin(dto.getDateOfJoin() != null ? dto.getDateOfJoin() : java.time.LocalDate.now());
         studentRepository.save(student);
 
         return StudentMapper.toDTO(student);
@@ -108,6 +118,7 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteStudent(Long studentId) throws Exception {
         User admin = getLoggedInAdmin();
         Student student = studentRepository.findById(studentId)
@@ -116,6 +127,27 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         if (!student.getLibrary().getId().equals(admin.getLibrary().getId())) {
             throw new Exception("You are not allowed to perform this action");
         }
+
+        // Deallocate all active seat allocations and free up seat if needed
+        List<SeatAllocation> activeAllocs = seatAllocationRepository.findByStudentIdAndActiveTrue(studentId);
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        for (SeatAllocation alloc : activeAllocs) {
+            alloc.setActive(false);
+            alloc.setDeallocatedAt(now);
+            seatAllocationRepository.save(alloc);
+            // Check if the seat has other active allocations from different students
+            Seat seat = alloc.getSeat();
+            boolean othersActive = seatAllocationRepository.findBySeatIdAndActiveTrue(seat.getId())
+                    .stream().anyMatch(a -> !a.getStudent().getId().equals(studentId));
+            if (!othersActive) {
+                seat.setStatus(SeatStatus.AVAILABLE);
+                seatRepository.save(seat);
+            }
+        }
+
+        // Clear student's seat reference
+        student.setSeat(null);
+        studentRepository.save(student);
 
         studentRepository.delete(student);
     }
@@ -142,8 +174,44 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         plan.setDuration(dto.getDuration());
         plan.setLibrary(user.getLibrary());
         plan.setPrice(dto.getPrice());
+        plan.setHoursPerDay(dto.getHoursPerDay());
+        plan.setStudyDays(dto.getStudyDays());
+        plan.setSubscriptionDays(dto.getSubscriptionDays());
         Plan savedPlan = planRepository.save(plan);
+
+        // Auto-generate slots if hoursPerDay is set and evenly divides 24
+        int hoursPerDay = savedPlan.getHoursPerDay() != null ? savedPlan.getHoursPerDay()
+                : (savedPlan.getDuration() != null ? savedPlan.getDuration().intValue() : 0);
+        if (hoursPerDay > 0 && 24 % hoursPerDay == 0) {
+            autoGenerateSlotsForPlan(savedPlan, user.getLibrary(), hoursPerDay);
+        }
+
         return PlanMapper.toDto(savedPlan);
+    }
+
+    private void autoGenerateSlotsForPlan(Plan plan, Library library, int hoursPerDay) {
+        int totalSlots = 24 / hoursPerDay;
+        String[] slotNames = {"Morning", "Afternoon", "Evening", "Night",
+                              "Slot 5", "Slot 6", "Slot 7", "Slot 8"};
+        LocalTime current = LocalTime.of(6, 0); // Start at 6 AM
+
+        for (int i = 0; i < totalSlots; i++) {
+            LocalTime start = current;
+            LocalTime end = start.plusHours(hoursPerDay);
+            // midnight: LocalTime.plusHours wraps around automatically (e.g. 18+6 = 00:00)
+
+            String name = i < slotNames.length ? slotNames[i] : ("Slot " + (i + 1));
+            Slot slot = Slot.builder()
+                    .slotName(name)
+                    .startTime(start)
+                    .endTime(end)
+                    .durationHours(hoursPerDay)
+                    .library(library)
+                    .plan(plan)
+                    .build();
+            slotRepository.save(slot);
+            current = end;
+        }
     }
 
     @Override
@@ -159,6 +227,9 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         plan.setName(dto.getName());
         plan.setPrice(dto.getPrice());
         plan.setDuration(dto.getDuration());
+        plan.setHoursPerDay(dto.getHoursPerDay());
+        plan.setStudyDays(dto.getStudyDays());
+        plan.setSubscriptionDays(dto.getSubscriptionDays());
         return PlanMapper.toDto(planRepository.save(plan));
     }
 

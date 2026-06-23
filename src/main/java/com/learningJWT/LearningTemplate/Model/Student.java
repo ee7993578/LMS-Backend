@@ -3,6 +3,7 @@ package com.learningJWT.LearningTemplate.Model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +58,9 @@ public class Student {
 
     private boolean active = true;
     private boolean buffer = false;
+
+    @Column(columnDefinition = "date")
+    private LocalDate dateOfJoin;
 
     @Column(columnDefinition = "datetime")
     private LocalDateTime bufferAssignedAt;

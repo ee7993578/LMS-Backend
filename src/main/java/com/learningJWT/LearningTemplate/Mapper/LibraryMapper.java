@@ -1,6 +1,7 @@
 package com.learningJWT.LearningTemplate.Mapper;
 
 import com.learningJWT.LearningTemplate.Enum.AllocationMode;
+import com.learningJWT.LearningTemplate.Enum.AttendanceMode;
 import com.learningJWT.LearningTemplate.Model.Library;
 import com.learningJWT.LearningTemplate.Paylod.DTO.LibraryDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.LibraryPlanDTO;
@@ -18,6 +19,7 @@ public class LibraryMapper {
         library.setWebsite(dto.getWebsite());
         library.setStatus(dto.getStatus());
         library.setAllocationMode(dto.getAllocationMode() != null ? dto.getAllocationMode() : AllocationMode.FLEXIBLE_HOUR);
+        library.setAttendanceMode(dto.getAttendanceMode() != null ? dto.getAttendanceMode() : AttendanceMode.BOTH);
         return library;
     }
 
@@ -31,6 +33,7 @@ public class LibraryMapper {
         dto.setWebsite(library.getWebsite());
         dto.setStatus(library.getStatus());
         dto.setAllocationMode(library.getAllocationMode() != null ? library.getAllocationMode() : AllocationMode.FLEXIBLE_HOUR);
+        dto.setAttendanceMode(library.getAttendanceMode() != null ? library.getAttendanceMode() : AttendanceMode.BOTH);
 
         if (library.getLibraryPlan() != null) {
             dto.setLibraryPlanId(library.getLibraryPlan().getPlanId());

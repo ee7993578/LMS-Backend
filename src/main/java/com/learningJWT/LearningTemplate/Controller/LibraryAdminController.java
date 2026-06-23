@@ -1,17 +1,24 @@
 package com.learningJWT.LearningTemplate.Controller;
 
 import com.learningJWT.LearningTemplate.Paylod.DTO.FeeDTO;
+import com.learningJWT.LearningTemplate.Paylod.DTO.PaymentProofDTO;
+import com.learningJWT.LearningTemplate.Paylod.DTO.PaymentSettingsDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.PlanDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.StudentDTO;
 import com.learningJWT.LearningTemplate.Paylod.Response.ApiResponse;
 import com.learningJWT.LearningTemplate.Services.FeeServices;
 import com.learningJWT.LearningTemplate.Services.LibraryAdminService;
+import com.learningJWT.LearningTemplate.Services.PaymentProofService;
+import com.learningJWT.LearningTemplate.Services.PaymentSettingsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/libraryadmin")
@@ -20,6 +27,8 @@ public class LibraryAdminController {
 
     private final LibraryAdminService libraryAdminService;
     private final FeeServices feeServices;
+    private final PaymentSettingsService paymentSettingsService;
+    private final PaymentProofService paymentProofService;
 
     @PreAuthorize("hasRole('LIBRARY_ADMIN')")
     @PostMapping("/student")
@@ -109,6 +118,64 @@ public class LibraryAdminController {
         return ResponseEntity.ok(feeServices.findByMonthIdLibraryId(monthId));
     }
 
+    /**
+     * Subscription Expiry Report:
+     * Returns students grouped into:
+     * - "expired": subscriptionExpiryDate < today (already expired), with daysAgo
+     * - "expiringSoon": today <= subscriptionExpiryDate <= today+7
+     */
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/fee/subscription-report")
+    public ResponseEntity<?> getSubscriptionExpiryReport() {
+        try {
+            List<StudentDTO> students = libraryAdminService.getAllStudents();
+            LocalDate today = LocalDate.now();
+            LocalDate in7Days = today.plusDays(7);
+
+            List<Map<String, Object>> expired = new ArrayList<>();
+            List<Map<String, Object>> expiringSoon = new ArrayList<>();
+
+            for (StudentDTO s : students) {
+                LocalDate expiry = s.getSubscriptionExpiryDate();
+                if (expiry == null) continue;
+
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("studentId", s.getId());
+                entry.put("fullName", s.getFullName());
+                entry.put("phone", s.getPhone());
+                entry.put("planName", s.getPlan() != null ? s.getPlan().getName() : null);
+                entry.put("dateOfJoin", s.getDateOfJoin());
+                entry.put("expiryDate", expiry);
+
+                if (expiry.isBefore(today)) {
+                    long daysAgo = java.time.temporal.ChronoUnit.DAYS.between(expiry, today);
+                    entry.put("daysAgo", daysAgo);
+                    expired.add(entry);
+                } else if (!expiry.isAfter(in7Days)) {
+                    long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, expiry);
+                    entry.put("daysLeft", daysLeft);
+                    expiringSoon.add(entry);
+                }
+            }
+
+            // Sort expired: most recently expired first (smallest daysAgo first)
+            expired.sort((a, b) -> Long.compare((Long) a.get("daysAgo"), (Long) b.get("daysAgo")));
+            // Sort expiringSoon: soonest expiry first
+            expiringSoon.sort((a, b) -> Long.compare((Long) a.get("daysLeft"), (Long) b.get("daysLeft")));
+
+            Map<String, Object> report = new LinkedHashMap<>();
+            report.put("generatedAt", today.toString());
+            report.put("expiredCount", expired.size());
+            report.put("expiringSoonCount", expiringSoon.size());
+            report.put("expired", expired);
+            report.put("expiringSoon", expiringSoon);
+
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PreAuthorize("hasRole('LIBRARY_ADMIN')")
     @GetMapping("/generate")
     public ResponseEntity<?> generateQR() throws Exception {
@@ -126,5 +193,78 @@ public class LibraryAdminController {
             return ResponseEntity.notFound().build();
         }
     }
-}
 
+    // ===================== Payment (deposit QR/UPI/phone) =====================
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/payment-settings")
+    public ResponseEntity<?> getPaymentSettings() {
+        try {
+            return ResponseEntity.ok(paymentSettingsService.getMySettings());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PostMapping(value = "/payment-settings", consumes = "multipart/form-data")
+    public ResponseEntity<?> savePaymentSettings(
+            @RequestParam(value = "qrFile", required = false) MultipartFile qrFile,
+            @RequestParam(value = "upiId", required = false) String upiId,
+            @RequestParam(value = "phoneNumber", required = false) String phoneNumber,
+            @RequestParam(value = "description", required = false) String description) {
+        try {
+            PaymentSettingsDTO saved = paymentSettingsService.saveSettings(qrFile, upiId, phoneNumber, description);
+            return ResponseEntity.ok(saved);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // ===================== Payment Proof Verification =====================
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/payment-proofs")
+    public ResponseEntity<?> getAllPaymentProofs() {
+        try {
+            return ResponseEntity.ok(paymentProofService.getLibraryProofs());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/payment-proofs/pending")
+    public ResponseEntity<?> getPendingPaymentProofs() {
+        try {
+            return ResponseEntity.ok(paymentProofService.getPendingProofs());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * Admin verifies a proof. Body is the same FeeDTO shape used by PUT /fee/{studentId} —
+     * Receive, concession, lateFee, feeStatus etc. The fee record is updated using the
+     * exact same logic as a manual fee deposit, then the proof is marked VERIFIED.
+     */
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PutMapping("/payment-proofs/{proofId}/verify")
+    public ResponseEntity<?> verifyPaymentProof(@PathVariable Long proofId, @RequestBody FeeDTO feeDTO) {
+        try {
+            return ResponseEntity.ok(paymentProofService.verifyProof(proofId, feeDTO));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PutMapping("/payment-proofs/{proofId}/reject")
+    public ResponseEntity<?> rejectPaymentProof(@PathVariable Long proofId, @RequestBody Map<String, String> body) {
+        try {
+            return ResponseEntity.ok(paymentProofService.rejectProof(proofId, body.get("adminNote")));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+}

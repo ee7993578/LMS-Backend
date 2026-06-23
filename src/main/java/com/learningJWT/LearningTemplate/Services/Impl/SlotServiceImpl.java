@@ -106,6 +106,63 @@ public class SlotServiceImpl implements SlotService {
                 .stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    @Override
+    public List<SlotDTO> autoGenerateSlots(Long planId) throws Exception {
+        User admin = getLoggedInAdmin();
+        Library library = admin.getLibrary();
+
+        Plan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new Exception("Plan not found"));
+
+        if (!plan.getLibrary().getId().equals(library.getId())) {
+            throw new Exception("Plan does not belong to your library");
+        }
+
+        int hoursPerDay = plan.getHoursPerDay() != null ? plan.getHoursPerDay() : plan.getDuration().intValue();
+        if (hoursPerDay <= 0 || 24 % hoursPerDay != 0) {
+            throw new Exception("Study hours (" + hoursPerDay + "h) must evenly divide 24 to auto-generate slots");
+        }
+
+        int totalSlots = 24 / hoursPerDay;
+
+        // Delete existing slots for this plan
+        slotRepository.deleteByLibraryIdAndPlanId(library.getId(), planId);
+
+        String[] slotNames = {"Morning", "Afternoon", "Evening", "Night",
+                              "Slot 5", "Slot 6", "Slot 7", "Slot 8"};
+
+        LocalTime current = LocalTime.of(6, 0); // Start at 6 AM
+        List<Slot> generated = new java.util.ArrayList<>();
+
+        for (int i = 0; i < totalSlots; i++) {
+            LocalTime start = current;
+            LocalTime end = current.plusHours(hoursPerDay);
+            // Handle midnight wrap: if end goes past midnight, use 00:00
+            if (start.plusHours(hoursPerDay).getHour() < start.getHour() || end.equals(LocalTime.MIDNIGHT)) {
+                end = LocalTime.MIDNIGHT; // represent as 00:00
+            }
+
+            String name = i < slotNames.length ? slotNames[i] : ("Slot " + (i + 1));
+            Slot slot = Slot.builder()
+                    .slotName(name)
+                    .startTime(start)
+                    .endTime(end)
+                    .durationHours(hoursPerDay)
+                    .library(library)
+                    .plan(plan)
+                    .build();
+            generated.add(slotRepository.save(slot));
+
+            current = end.equals(LocalTime.MIDNIGHT) ? LocalTime.of(0, 0) : end;
+            if (current.equals(LocalTime.of(0, 0)) && i < totalSlots - 1) {
+                // wrap around — just keep going from midnight
+                current = LocalTime.of(0, 0);
+            }
+        }
+
+        return generated.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
     // ---- Validation ----
 
     private void validateSlot(SlotDTO dto, Library library, Plan plan, Long excludeSlotId) throws Exception {
@@ -116,20 +173,21 @@ public class SlotServiceImpl implements SlotService {
 
         // Compute slot duration
         int durationHrs = computeDurationHours(start, end);
-        long planDuration = plan.getDuration(); // plan duration in hours
+        // Use hoursPerDay (study hours per day) for slot duration validation, not subscriptionDays
+        int planStudyHours = plan.getHoursPerDay() != null ? plan.getHoursPerDay() : plan.getDuration().intValue();
 
-        // Slot duration must exactly match plan duration
-        if (durationHrs != planDuration) {
-            throw new Exception("Slot duration (" + durationHrs + "h) must match plan duration (" + planDuration + "h)");
+        // Slot duration must exactly match plan's study hours per day
+        if (durationHrs != planStudyHours) {
+            throw new Exception("Slot duration (" + durationHrs + "h) must match plan study hours per day (" + planStudyHours + "h)");
         }
 
-        // Max slots = 24 / planDuration
-        int maxSlots = (int) (24 / planDuration);
+        // Max slots = 24 / planStudyHours
+        int maxSlots = (int) (24 / planStudyHours);
         List<Slot> existing = slotRepository.findByLibraryIdAndPlanId(library.getId(), plan.getId());
         long currentCount = existing.stream().filter(s -> !s.getId().equals(excludeSlotId)).count();
 
         if (currentCount >= maxSlots) {
-            throw new Exception("Maximum " + maxSlots + " slot(s) allowed for a " + planDuration + "-hour plan");
+            throw new Exception("Maximum " + maxSlots + " slot(s) allowed for a " + planStudyHours + "-hour/day plan");
         }
 
         // Check overlap with existing slots for this plan
