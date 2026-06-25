@@ -24,4 +24,7 @@ public class LibraryPlanDTO {
     private Integer bufferStudent;
     private Integer planOrder;
     private Integer noOfDays;
+    private String description;
+    private Boolean isActive;
+    private Integer gracePeriodDays;
 }

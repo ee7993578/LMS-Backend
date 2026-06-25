@@ -25,4 +25,18 @@ public class LibraryDTO {
     private String adminPhone;
     private Long libraryPlanId;
     private LibraryPlanDTO libraryPlan;
+
+    // ===== Lifecycle / usage info (read-only, populated on fetch) =====
+    private java.time.LocalDateTime trialStartDate;
+    private java.time.LocalDateTime trialEndDate;
+    private java.time.LocalDateTime statusChangedAt;
+    private Long daysRemainingInCurrentPhase;
+
+    private Integer currentStudentCount;
+    private Integer planLimit;
+    private Integer graceLimit;
+    private Boolean inGracePeriod;
+    private Long graceDaysRemaining;
+
+    private SubscriptionDTO subscription;
 }

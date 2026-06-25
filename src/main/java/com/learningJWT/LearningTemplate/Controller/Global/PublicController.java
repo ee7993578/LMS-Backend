@@ -19,7 +19,7 @@ public class PublicController {
     private final SuperAdminService superAdminService;
     @GetMapping("/plan")
     public ResponseEntity<List<LibraryPlanDTO>> getAllPlan() throws Exception{
-        return ResponseEntity.ok(libraryPlanServices.getAllPlans());
+        return ResponseEntity.ok(libraryPlanServices.getActivePlans());
     }
 
 

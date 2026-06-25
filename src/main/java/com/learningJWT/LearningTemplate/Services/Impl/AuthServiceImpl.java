@@ -1,7 +1,9 @@
 package com.learningJWT.LearningTemplate.Services.Impl;
 import com.learningJWT.LearningTemplate.Configuration.JWTProvider;
+import com.learningJWT.LearningTemplate.Enum.Status;
 import com.learningJWT.LearningTemplate.Enum.UserRole;
 import com.learningJWT.LearningTemplate.Exception.UserException;
+import com.learningJWT.LearningTemplate.Model.Library;
 import com.learningJWT.LearningTemplate.Model.User;
 import com.learningJWT.LearningTemplate.Paylod.DTO.UserDto;
 import com.learningJWT.LearningTemplate.Paylod.Response.AuthResponse;
@@ -92,6 +94,30 @@ public class AuthServiceImpl implements AuthService {
             }
             User user = optionalUser.get();
 
+            // ===== Library Status Gate =====
+            // Credentials are correct, but LIBRARY_ADMIN and STUDENT logins must still be
+            // blocked if their library is INACTIVE or DELETED. SuperAdmin has no library and
+            // skips this entirely. TRIAL / TRIAL_READ_ONLY / ACTIVE / EXPIRED_READ_ONLY are all
+            // allowed to log in (read-only enforcement for the latter two happens per-request
+            // in LibraryAccessFilter, not here).
+            if (user.getRole() != UserRole.ROLE_SUPERADMIN) {
+                Library library = user.getLibrary();
+                if (library == null) {
+                    throw new UserException("No library is associated with this account.");
+                }
+                Status status = library.getStatus();
+                if (status == Status.INACTIVE) {
+                    throw new UserException(user.getRole() == UserRole.ROLE_STUDENT
+                            ? "Your library subscription is inactive. Please contact your library administrator."
+                            : "Your library subscription is inactive. Please renew your subscription to continue.");
+                }
+                if (status == Status.DELETED) {
+                    throw new UserException(user.getRole() == UserRole.ROLE_STUDENT
+                            ? "Your library subscription is inactive. Please contact your library administrator."
+                            : "Your library subscription is inactive. Please renew your subscription to continue.");
+                }
+            }
+
             // update last login
             user.setLastlogin(LocalDateTime.now());
             userRepository.save(user);
@@ -107,7 +133,11 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (BadCredentialsException ex) {
             throw new UserException("Invalid username or password");
-        } catch (Exception ex) {
+        } catch (UserException ex) {
+            // Re-thrown as-is so the specific status message (trial/inactive/deleted) reaches
+            // the controller and the user, instead of being wrapped into a generic message below.
+            throw ex;
+        } catch (RuntimeException ex) {
             throw new UserException("Authentication failed: " + ex.getMessage());
         }
     }

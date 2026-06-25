@@ -177,7 +177,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     public void deleteExpiredBufferStudents() {
-
+        // Intentionally a no-op. Per product requirement, student data is NEVER deleted when a
+        // library exceeds its plan limit or its grace period lapses — only NEW student creation
+        // is blocked (see LibraryLifecycleService#canRegisterNewStudent). Existing students,
+        // including those created during a grace window, remain visible and usable forever.
     }
 
     @Override
@@ -188,21 +191,30 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             LocalDate billingEnd = sub.getBillingEnd();
             if (billingEnd != null && billingEnd.isBefore(today)) {
                 sub.setStatus(Status.EXPIRED);
-                //Agar hum handle nahin karna chahte hain grace end date wo hum yahan bhi kar sakte hain set
-//                sub.setGraceEndDate(billingEnd.plusDays(7));
+                sub.setGraceEndDate(billingEnd.plusDays(7));
+                sub.setStatusChangedAt(java.time.LocalDateTime.now());
                 Library lib = sub.getLibrary();
-                lib.setStatus(Status.GRACE);
+                // EXPIRED_READ_ONLY: subscription lapsed, library gets a 7-day read-only window
+                // (see LibraryLifecycleScheduler for the full ACTIVE -> EXPIRED_READ_ONLY -> INACTIVE -> DELETED flow).
+                lib.setStatus(Status.EXPIRED_READ_ONLY);
+                lib.setStatusChangedAt(java.time.LocalDateTime.now());
                 libraryRepository.save(lib);
                 subscriptionRepository.save(sub);
             }
         }
     }
 
+    /**
+     * NOTE: This method is intentionally NOT used by the scheduler anymore (see
+     * LibraryLifecycleScheduler, which implements the full read-only -> inactive -> soft-delete
+     * flow without ever hard-deleting rows). It is kept only so the existing
+     * SubscriptionService interface and any direct callers keep compiling, and it now performs
+     * a safe, reversible soft-delete instead of destroying library/admin/student data.
+     */
     @Override
     public void deleteLibrariesAfterGracePeriod() {
 
         LocalDate today = LocalDate.now();
-
 
         List<Subscription> graceSubscriptions =
                 subscriptionRepository.findByStatus(Status.GRACE);
@@ -211,19 +223,20 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
             LocalDate graceEnd = subscription.getGraceEndDate();
 
-            // ✅ Step 2: Skip if graceEndDate is null or still in grace period
             if (graceEnd == null || !graceEnd.isBefore(today)) {
                 continue;
             }
 
-            // ✅ Step 3: grace period over → delete library + all related data
+            // Grace period over -> soft-delete only. Library, admin, and student rows are
+            // preserved; we just flip status so the library stops being usable.
             Library library = subscription.getLibrary();
-            Long libraryId = library.getId();
+            library.setStatus(Status.INACTIVE);
+            library.setStatusChangedAt(java.time.LocalDateTime.now());
+            libraryRepository.save(library);
 
-
-            userRepository.deleteByLibraryId(libraryId);
-            libraryRepository.delete(library);
-            subscriptionRepository.delete(subscription);
+            subscription.setStatus(Status.INACTIVE);
+            subscription.setStatusChangedAt(java.time.LocalDateTime.now());
+            subscriptionRepository.save(subscription);
         }
     }
 

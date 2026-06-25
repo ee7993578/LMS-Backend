@@ -5,9 +5,18 @@ import com.learningJWT.LearningTemplate.Model.Library;
 import com.learningJWT.LearningTemplate.Paylod.DTO.LibraryDTO;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface LibraryRepository extends JpaRepository<Library,Long> {
 
     List<Library> findByStatus(Status status);
+
+    long countByStatus(Status status);
+
+    List<Library> findByStatusAndTrialEndDateBefore(Status status, LocalDateTime cutoff);
+
+    List<Library> findByStatusAndStatusChangedAtBefore(Status status, LocalDateTime cutoff);
+
+    List<Library> findByStatusNot(Status status);
 }

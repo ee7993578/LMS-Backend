@@ -18,4 +18,11 @@ public interface FeeServices {
     List<FeeDTO> findByMonthIdLibraryId(int monthId) throws Exception;
     FeeDTO feeDeposit(Long studentId, FeeDTO feeDTO) throws Exception;
     ApiResponse FeeDelete(Long studentId, FeeDTO feeDTO) throws Exception;
+
+    /**
+     * Applies a payment amount to a student's oldest outstanding (unpaid/partial) fee record,
+     * ADDING to whatever has already been received instead of overwriting it. Falls back to
+     * the latest month if there is no pending fee. Returns the updated fee.
+     */
+    FeeDTO applyPayment(Long studentId, double amountReceived, double concession, double lateFee, com.learningJWT.LearningTemplate.Enum.FeeStatus forcedStatus) throws Exception;
 }

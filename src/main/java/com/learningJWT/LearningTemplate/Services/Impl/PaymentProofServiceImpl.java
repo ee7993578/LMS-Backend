@@ -110,8 +110,15 @@ public class PaymentProofServiceImpl implements PaymentProofService {
             throw new Exception("Not authorized to verify this proof");
         }
 
-        // Reuse the exact same fee-update logic the admin already uses for manual deposits.
-        FeeDTO updatedFee = feeServices.updateFee(proof.getStudent().getId(), feeDTO);
+        // Additive update: adds this payment on top of whatever the student already paid,
+        // applied to the oldest outstanding month — does not overwrite prior deposits.
+        FeeDTO updatedFee = feeServices.applyPayment(
+                proof.getStudent().getId(),
+                feeDTO.getReceive(),
+                feeDTO.getConcession(),
+                feeDTO.getLateFee(),
+                feeDTO.getFeeStatus()
+        );
 
         proof.setStatus(ProofStatus.VERIFIED);
         proof.setVerifiedAt(LocalDateTime.now());

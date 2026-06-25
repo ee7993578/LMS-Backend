@@ -2,10 +2,14 @@ package com.learningJWT.LearningTemplate.Mapper;
 
 import com.learningJWT.LearningTemplate.Enum.AllocationMode;
 import com.learningJWT.LearningTemplate.Enum.AttendanceMode;
+import com.learningJWT.LearningTemplate.Enum.Status;
 import com.learningJWT.LearningTemplate.Model.Library;
 import com.learningJWT.LearningTemplate.Paylod.DTO.LibraryDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.LibraryPlanDTO;
 import org.springframework.stereotype.Component;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
 
 @Component
 public class LibraryMapper {
@@ -35,6 +39,11 @@ public class LibraryMapper {
         dto.setAllocationMode(library.getAllocationMode() != null ? library.getAllocationMode() : AllocationMode.FLEXIBLE_HOUR);
         dto.setAttendanceMode(library.getAttendanceMode() != null ? library.getAttendanceMode() : AttendanceMode.BOTH);
 
+        dto.setTrialStartDate(library.getTrialStartDate());
+        dto.setTrialEndDate(library.getTrialEndDate());
+        dto.setStatusChangedAt(library.getStatusChangedAt());
+        dto.setDaysRemainingInCurrentPhase(computeDaysRemaining(library));
+
         if (library.getLibraryPlan() != null) {
             dto.setLibraryPlanId(library.getLibraryPlan().getPlanId());
             LibraryPlanDTO planDTO = LibraryPlanDTO.builder()
@@ -45,8 +54,13 @@ public class LibraryMapper {
                     .bufferStudent(library.getLibraryPlan().getBufferStudent())
                     .planOrder(library.getLibraryPlan().getPlanOrder())
                     .noOfDays(library.getLibraryPlan().getNoOfDays())
+                    .description(library.getLibraryPlan().getDescription())
+                    .isActive(library.getLibraryPlan().getIsActive())
+                    .gracePeriodDays(library.getLibraryPlan().getGracePeriodDays())
                     .build();
             dto.setLibraryPlan(planDTO);
+            dto.setPlanLimit(library.getLibraryPlan().getNoOfStudent());
+            dto.setGraceLimit(library.getLibraryPlan().getBufferStudent());
         }
 
         if (library.getAdmin() != null) {
@@ -55,5 +69,31 @@ public class LibraryMapper {
             dto.setAdminPhone(library.getAdmin().getPhone());
         }
         return dto;
+    }
+
+    /** Days left in the library's CURRENT phase (trial, trial-read-only, expired-read-only,
+     *  or inactive-before-deletion). Returns null for ACTIVE / DELETED / PENDING since there's
+     *  no countdown to show for those. Never negative — floors at 0. */
+    private static Long computeDaysRemaining(Library library) {
+        if (library.getStatus() == null) return null;
+        LocalDateTime now = LocalDateTime.now();
+        switch (library.getStatus()) {
+            case TRIAL:
+                if (library.getTrialEndDate() == null) return null;
+                return Math.max(0, Duration.between(now, library.getTrialEndDate()).toDays());
+            case TRIAL_READ_ONLY:
+                if (library.getStatusChangedAt() == null) return null;
+                return Math.max(0, 7 - Duration.between(library.getStatusChangedAt(), now).toDays());
+            case EXPIRED_READ_ONLY:
+                if (library.getStatusChangedAt() == null) return null;
+                return Math.max(0, 7 - Duration.between(library.getStatusChangedAt(), now).toDays());
+            case INACTIVE:
+                if (library.getStatusChangedAt() == null) return null;
+                // Ambiguous which inactive-window applies (30d post-trial vs 90d post-subscription)
+                // without knowing prior phase; SuperAdmin services compute the precise figure where needed.
+                return Math.max(0, 30 - Duration.between(library.getStatusChangedAt(), now).toDays());
+            default:
+                return null;
+        }
     }
 }

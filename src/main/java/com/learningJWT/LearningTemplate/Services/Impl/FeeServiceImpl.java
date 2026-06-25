@@ -120,4 +120,44 @@ public class FeeServiceImpl implements FeeServices {
     public ApiResponse FeeDelete(Long studentId, FeeDTO feeDTO) throws Exception {
         return null;
     }
+
+    @Override
+    public FeeDTO applyPayment(Long studentId, double amountReceived, double concession, double lateFee, FeeStatus forcedStatus) throws Exception {
+        Long libraryId = getLoggedInAdmin().getLibrary().getId();
+
+        List<Fee> pending = feeRepository.findPendingFeesOrderByMonthAsc(studentId, libraryId);
+        Fee fee;
+        if (!pending.isEmpty()) {
+            fee = pending.get(0); // oldest outstanding month — pay dues in order
+        } else {
+            int maxMonthId = findGreatestMonthId(studentId, libraryId);
+            if (maxMonthId <= 0) throw new Exception("No fee record found for this student");
+            fee = feeRepository.findByStudentIdAndLibraryIdAndMonthId(studentId, libraryId, maxMonthId);
+            if (fee == null) throw new Exception("Fee record not found");
+        }
+
+        // Additive: add this payment on top of whatever was already received/credited.
+        fee.setReceive(fee.getReceive() + amountReceived);
+        fee.setConcession(fee.getConcession() + concession);
+        fee.setLateFee(fee.getLateFee() + lateFee);
+
+        double balance = (fee.getPayable() + fee.getLateFee()) - (fee.getReceive() + fee.getConcession());
+        fee.setBalance(Math.max(0, balance));
+
+        if (forcedStatus != null) {
+            fee.setFeeStatus(forcedStatus);
+        } else if (fee.getBalance() <= 0) {
+            fee.setFeeStatus(FeeStatus.PAID);
+        } else if (fee.getReceive() > 0) {
+            fee.setFeeStatus(FeeStatus.PARTIAL);
+        } else {
+            fee.setFeeStatus(FeeStatus.UNPAID);
+        }
+
+        if (fee.getFeeStatus() == FeeStatus.PAID) {
+            fee.setPaymentDate(java.time.LocalDate.now());
+        }
+
+        return FeeMapper.toDTO(feeRepository.save(fee));
+    }
 }

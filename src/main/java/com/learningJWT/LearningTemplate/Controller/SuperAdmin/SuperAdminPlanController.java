@@ -18,14 +18,22 @@ public class SuperAdminPlanController {
     private final LibraryPlanServices libraryPlanServices;
     @PreAuthorize("hasRole('SUPERADMIN')")
     @PostMapping()
-    public ResponseEntity<LibraryPlanDTO> createPlan(@RequestBody LibraryPlanDTO libraryPlanDTO) throws Exception{
-        return ResponseEntity.ok(libraryPlanServices.createPlan(libraryPlanDTO));
+    public ResponseEntity<?> createPlan(@RequestBody LibraryPlanDTO libraryPlanDTO) {
+        try {
+            return ResponseEntity.ok(libraryPlanServices.createPlan(libraryPlanDTO));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PreAuthorize("hasRole('SUPERADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<LibraryPlanDTO> updatePlan(@PathVariable Long id ,@RequestBody LibraryPlanDTO libraryPlanDTO) throws Exception{
-        return ResponseEntity.ok(libraryPlanServices.updatePlan(id,libraryPlanDTO));
+    public ResponseEntity<?> updatePlan(@PathVariable Long id, @RequestBody LibraryPlanDTO libraryPlanDTO) {
+        try {
+            return ResponseEntity.ok(libraryPlanServices.updatePlan(id, libraryPlanDTO));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
     @PreAuthorize("hasRole('SUPERADMIN')")
     @GetMapping("/{id}")
@@ -40,10 +48,32 @@ public class SuperAdminPlanController {
         return ResponseEntity.ok(libraryPlanServices.deletePlan(id));
     }
 
-//    @PreAuthorize("hasRole('SUPERADMIN')")
+    // NOTE: previously unguarded at the method level and relied on a permitAll() URL rule in
+    // SecurityConfig that has since been removed — anyone could read full plan pricing with no
+    // auth. Now properly gated both at the URL level (/api/superadmin/**) and here.
+    @PreAuthorize("hasRole('SUPERADMIN')")
     @GetMapping()
     public ResponseEntity<List<LibraryPlanDTO>> getAllPlan() throws Exception{
         return ResponseEntity.ok(libraryPlanServices.getAllPlans());
+    }
+
+    /** Plans currently offered to new/upgrading libraries (isActive = true only). */
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @GetMapping("/active")
+    public ResponseEntity<List<LibraryPlanDTO>> getActivePlans() throws Exception{
+        return ResponseEntity.ok(libraryPlanServices.getActivePlans());
+    }
+
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PutMapping("/{id}/activate")
+    public ResponseEntity<LibraryPlanDTO> activatePlan(@PathVariable Long id) throws Exception {
+        return ResponseEntity.ok(libraryPlanServices.setPlanActive(id, true));
+    }
+
+    @PreAuthorize("hasRole('SUPERADMIN')")
+    @PutMapping("/{id}/deactivate")
+    public ResponseEntity<LibraryPlanDTO> deactivatePlan(@PathVariable Long id) throws Exception {
+        return ResponseEntity.ok(libraryPlanServices.setPlanActive(id, false));
     }
 
 }

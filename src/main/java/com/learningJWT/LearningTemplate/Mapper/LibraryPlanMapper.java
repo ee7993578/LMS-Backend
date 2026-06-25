@@ -16,6 +16,9 @@ public class LibraryPlanMapper {
                .planOrder(entity.getPlanOrder())
                .planName(entity.getPlanName())
                .noOfDays(entity.getNoOfDays())
+               .description(entity.getDescription())
+               .isActive(entity.getIsActive())
+               .gracePeriodDays(entity.getGracePeriodDays())
                .build();
     }
 
@@ -30,6 +33,9 @@ public class LibraryPlanMapper {
                 .planOrder(libraryPlanDTO.getPlanOrder())
                 .planName(libraryPlanDTO.getPlanName())
                 .noOfDays(libraryPlanDTO.getNoOfDays())
+                .description(libraryPlanDTO.getDescription())
+                .isActive(libraryPlanDTO.getIsActive() != null ? libraryPlanDTO.getIsActive() : true)
+                .gracePeriodDays(libraryPlanDTO.getGracePeriodDays() != null ? libraryPlanDTO.getGracePeriodDays() : 3)
                 .build();
     }
 

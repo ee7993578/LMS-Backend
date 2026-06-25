@@ -24,6 +24,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final LibraryAccessFilter libraryAccessFilter;
 
     @Bean
     public SecurityFilterChain configure(HttpSecurity http) throws Exception {
@@ -33,8 +34,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers("/api/superadmin/library/create").permitAll()
-                        .requestMatchers("/api/superadmin/plan").permitAll()
+                        // SuperAdmin endpoints: ALL require ROLE_SUPERADMIN. The previous
+                        // permitAll() on library/create and plan listing was a security hole —
+                        // it let anyone create libraries or read plan pricing with no auth at all.
+                        .requestMatchers("/api/superadmin/**").hasRole("SUPERADMIN")
                         .requestMatchers("/api/libraryadmin/**").hasRole("LIBRARY_ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("LIBRARY_ADMIN")
                         .requestMatchers("/api/student/**").hasRole("STUDENT")
@@ -42,6 +45,10 @@ public class SecurityConfig {
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // LibraryAccessFilter runs right after JWT auth so SecurityContextHolder is
+                // already populated; this is the single centralized place that checks library
+                // existence/status/read-only-mode for every LIBRARY_ADMIN and STUDENT request.
+                .addFilterAfter(libraryAccessFilter, JwtAuthenticationFilter.class)
                 .build();
     }
 

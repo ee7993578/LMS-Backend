@@ -12,4 +12,6 @@ public interface SubscriptionRepository extends JpaRepository<Subscription,Long>
 
     Subscription findByLibraryId(Long libraryId) ;
     List<Subscription> findByStatus(Status subscriptionStatus);
+    List<Subscription> findByStatusAndBillingEndBefore(Status status, java.time.LocalDate cutoff);
+    List<Subscription> findByStatusAndStatusChangedAtBefore(Status status, java.time.LocalDateTime cutoff);
 }

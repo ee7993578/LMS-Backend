@@ -28,7 +28,13 @@ public class Library {
     private String phone;
     private String website;
 
+    // IMPORTANT: explicit VARCHAR columnDefinition. Without this, Hibernate's ddl-auto=update
+    // creates a MySQL ENUM(...) column baked with whatever Status values existed at the time
+    // the table was first created. Adding new enum values later (TRIAL, TRIAL_READ_ONLY, etc.)
+    // then fails at runtime with "Data truncated for column 'status'" because ddl-auto=update
+    // never widens an existing ENUM's allowed values. VARCHAR has no such constraint.
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(40)")
     private Status status;
 
     @Enumerated(EnumType.STRING)
@@ -44,6 +50,28 @@ public class Library {
 
     @Column(columnDefinition = "datetime")
     private LocalDateTime updatedAt;
+
+    // ===== Subscription / Trial lifecycle tracking =====
+
+    /** When the 7-day TRIAL period started (set at registration). */
+    @Column(columnDefinition = "datetime")
+    private LocalDateTime trialStartDate;
+
+    /** trialStartDate + 7 days. After this, library moves to TRIAL_READ_ONLY. */
+    @Column(columnDefinition = "datetime")
+    private LocalDateTime trialEndDate;
+
+    /** Timestamp of the most recent status transition. Used to compute how long a
+     *  library has been in TRIAL_READ_ONLY / EXPIRED_READ_ONLY / INACTIVE, which then
+     *  drives the next automatic transition (e.g. INACTIVE -> DELETED after 30/90 days). */
+    @Column(columnDefinition = "datetime")
+    private LocalDateTime statusChangedAt;
+
+    /** Plan-usage grace period (student count between plan limit and limit+buffer).
+     *  Set when the library first exceeds its plan's student limit; cleared when the
+     *  library is back within limit or the plan/limit changes. */
+    @Column(columnDefinition = "datetime")
+    private LocalDateTime gracePeriodStartedAt;
 
     @OneToOne
     @JoinColumn(name = "admin_id", unique = true)

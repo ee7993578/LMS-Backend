@@ -12,5 +12,7 @@ public interface LibraryPlanServices {
     ApiResponse deletePlan(Long id) throws Exception;
     LibraryPlanDTO getPlan(Long id) throws Exception;
     List<LibraryPlanDTO> getAllPlans() throws Exception;
+    List<LibraryPlanDTO> getActivePlans() throws Exception;
+    LibraryPlanDTO setPlanActive(Long id, boolean active) throws Exception;
 
 }

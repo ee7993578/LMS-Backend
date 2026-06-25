@@ -4,12 +4,14 @@ import com.learningJWT.LearningTemplate.Paylod.DTO.FeeDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.PaymentProofDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.PaymentSettingsDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.PlanDTO;
+import com.learningJWT.LearningTemplate.Paylod.DTO.PlanUpgradeRequestDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.StudentDTO;
 import com.learningJWT.LearningTemplate.Paylod.Response.ApiResponse;
 import com.learningJWT.LearningTemplate.Services.FeeServices;
 import com.learningJWT.LearningTemplate.Services.LibraryAdminService;
 import com.learningJWT.LearningTemplate.Services.PaymentProofService;
 import com.learningJWT.LearningTemplate.Services.PaymentSettingsService;
+import com.learningJWT.LearningTemplate.Services.PlanUpgradeRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,6 +31,7 @@ public class LibraryAdminController {
     private final FeeServices feeServices;
     private final PaymentSettingsService paymentSettingsService;
     private final PaymentProofService paymentProofService;
+    private final PlanUpgradeRequestService planUpgradeRequestService;
 
     @PreAuthorize("hasRole('LIBRARY_ADMIN')")
     @PostMapping("/student")
@@ -65,6 +68,52 @@ public class LibraryAdminController {
     @GetMapping("/students")
     public ResponseEntity<List<StudentDTO>> getAllStudents() {
         return ResponseEntity.ok(libraryAdminService.getAllStudents());
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/subscription-status")
+    public ResponseEntity<?> getMySubscriptionStatus() {
+        try {
+            return ResponseEntity.ok(libraryAdminService.getMySubscriptionStatus());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // ===================== Plan upgrade requests =====================
+    // Library admin browses all plans (see /plan/catalog below), picks one, and submits a
+    // request here. SuperAdmin then approves (actually applies the plan change) or rejects it
+    // from the SuperAdmin Plan Requests page.
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/plan/catalog")
+    public ResponseEntity<?> getPlanCatalog() {
+        // All active plans the library admin can choose to request an upgrade/downgrade to.
+        try {
+            return ResponseEntity.ok(libraryAdminService.getPlanCatalog());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PostMapping("/plan-requests")
+    public ResponseEntity<?> requestPlanChange(@RequestBody com.learningJWT.LearningTemplate.Paylod.DTO.PlanChangeRequestBody body) {
+        try {
+            return ResponseEntity.ok(planUpgradeRequestService.createRequest(body.getRequestedPlanId(), body.getNote()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/plan-requests")
+    public ResponseEntity<?> getMyPlanRequests() {
+        try {
+            return ResponseEntity.ok(planUpgradeRequestService.getMyRequests());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PreAuthorize("hasRole('LIBRARY_ADMIN')")

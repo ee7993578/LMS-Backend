@@ -47,6 +47,8 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
     private final SeatAllocationRepository seatAllocationRepository;
     private final SeatRepository seatRepository;
     private final SlotRepository slotRepository;
+    private final com.learningJWT.LearningTemplate.Services.LibraryLifecycleService lifecycleService;
+    private final com.learningJWT.LearningTemplate.Repository.LibraryPlanRepository libraryPlanRepository;
 
     private User getLoggedInAdmin() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -65,6 +67,13 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
 
         if (library == null) {
             throw new Exception("Admin is not associated with a library");
+        }
+
+        // ===== Plan limit / grace period gate =====
+        // NEVER deletes, hides, or modifies any existing student — this only blocks the
+        // creation of a NEW one once the library is at/over its plan limit + grace buffer.
+        if (!lifecycleService.canRegisterNewStudent(library)) {
+            throw new Exception("Plan limit exceeded. Please upgrade your subscription to add more students.");
         }
 
         String loginUsername = dto.getUsername() != null && !dto.getUsername().isBlank()
@@ -93,6 +102,14 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         student.setUpdatedAt(LocalDateTime.now());
         // Set date of join — use provided date or default to today
         student.setDateOfJoin(dto.getDateOfJoin() != null ? dto.getDateOfJoin() : java.time.LocalDate.now());
+
+        // Mark whether this student was created while the library was already inside its
+        // grace window — informational only, never used to hide/restrict the student later.
+        if (library.getGracePeriodStartedAt() != null) {
+            student.setBuffer(true);
+            student.setBufferAssignedAt(LocalDateTime.now());
+        }
+
         studentRepository.save(student);
 
         return StudentMapper.toDTO(student);
@@ -305,5 +322,42 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         MatrixToImageWriter.writeToStream(matrix, "PNG", baos);
         return Base64.getEncoder().encodeToString(baos.toByteArray());
+    }
+
+    @Override
+    public com.learningJWT.LearningTemplate.Paylod.DTO.LibraryUsageDTO getMySubscriptionStatus() throws Exception {
+        User admin = getLoggedInAdmin();
+        Library library = admin.getLibrary();
+        if (library == null) {
+            throw new Exception("Admin is not associated with a library");
+        }
+
+        long count = lifecycleService.currentStudentCount(library.getId());
+        com.learningJWT.LearningTemplate.Model.LibraryPlan plan = library.getLibraryPlan();
+        com.learningJWT.LearningTemplate.Enum.PlanUsageStatus usageStatus = lifecycleService.evaluatePlanUsage(library);
+
+        return com.learningJWT.LearningTemplate.Paylod.DTO.LibraryUsageDTO.builder()
+                .libraryId(library.getId())
+                .libraryName(library.getName())
+                .planName(plan != null ? plan.getPlanName() : null)
+                .planLimit(plan != null ? plan.getNoOfStudent() : null)
+                .graceLimit(plan != null && plan.getNoOfStudent() != null
+                        ? plan.getNoOfStudent() + (plan.getBufferStudent() != null ? plan.getBufferStudent() : 0)
+                        : null)
+                .currentStudentCount(count)
+                .inGracePeriod(usageStatus == com.learningJWT.LearningTemplate.Enum.PlanUsageStatus.IN_GRACE
+                        || usageStatus == com.learningJWT.LearningTemplate.Enum.PlanUsageStatus.GRACE_EXCEEDED)
+                .graceDaysRemaining(lifecycleService.graceDaysRemaining(library))
+                .graceExceeded(usageStatus == com.learningJWT.LearningTemplate.Enum.PlanUsageStatus.GRACE_EXCEEDED)
+                .status(library.getStatus())
+                .daysRemainingInCurrentPhase(com.learningJWT.LearningTemplate.Mapper.LibraryMapper.toDTO(library).getDaysRemainingInCurrentPhase())
+                .build();
+    }
+
+    @Override
+    public List<com.learningJWT.LearningTemplate.Paylod.DTO.LibraryPlanDTO> getPlanCatalog() throws Exception {
+        return libraryPlanRepository.findByIsActiveTrue().stream()
+                .map(com.learningJWT.LearningTemplate.Mapper.LibraryPlanMapper::toDto)
+                .collect(java.util.stream.Collectors.toList());
     }
 }

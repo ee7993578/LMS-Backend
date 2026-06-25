@@ -18,4 +18,9 @@ public interface FeeRepository extends JpaRepository<Fee,Long> {
     Fee findByStudentIdAndLibraryIdAndMonthId(Long studentId, Long libraryId, int monthId);
     List<Fee> findByLibraryId(Long libraryId);
     List<Fee>  findByMonthIdAndLibraryId(int monthId, Long libraryId);
+
+    @Query("SELECT f FROM Fee f WHERE f.student.id = :studentId AND f.library.id = :libraryId " +
+           "AND f.feeStatus <> com.learningJWT.LearningTemplate.Enum.FeeStatus.PAID " +
+           "ORDER BY f.monthId ASC")
+    List<Fee> findPendingFeesOrderByMonthAsc(@Param("studentId") Long studentId, @Param("libraryId") Long libraryId);
 }

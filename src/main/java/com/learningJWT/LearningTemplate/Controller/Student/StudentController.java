@@ -7,7 +7,11 @@ import com.learningJWT.LearningTemplate.Paylod.DTO.FeeDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.PlanDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.SeatDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.StudentDTO;
+import com.learningJWT.LearningTemplate.Mapper.SeatMapper;
+import com.learningJWT.LearningTemplate.Model.SeatAllocation;
+import com.learningJWT.LearningTemplate.Paylod.DTO.SeatAllocationDTO;
 import com.learningJWT.LearningTemplate.Repository.AttendanceRepository;
+import com.learningJWT.LearningTemplate.Repository.SeatAllocationRepository;
 import com.learningJWT.LearningTemplate.Repository.StudentRepository;
 import com.learningJWT.LearningTemplate.Repository.UserRepository;
 import com.learningJWT.LearningTemplate.Services.PaymentProofService;
@@ -34,6 +38,7 @@ public class StudentController {
     private final AttendanceRepository attendanceRepository;
     private final PaymentSettingsService paymentSettingsService;
     private final PaymentProofService paymentProofService;
+    private final SeatAllocationRepository seatAllocationRepository;
 
     private User getLoggedInUser() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -44,7 +49,7 @@ public class StudentController {
         throw new Exception("No authenticated user found");
     }
 
-    /** GET /api/student/my-seat — returns the logged-in student's seat and plan info */
+    /** GET /api/student/my-seat — returns the logged-in student's seat, plan and slot/time allocation info */
     @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/my-seat")
     public ResponseEntity<?> getMySeat() throws Exception {
@@ -54,27 +59,44 @@ public class StudentController {
             return ResponseEntity.notFound().build();
         }
 
-        // Build SeatDTO using builder (avoids no-args constructor issue)
-        SeatDTO.SeatDTOBuilder builder = SeatDTO.builder();
+        // Get active allocation for this student
+        List<SeatAllocation> activeAllocs = seatAllocationRepository.findByStudentIdAndActiveTrue(student.getId());
 
-        if (student.getSeat() != null) {
-            builder.id(student.getSeat().getId())
-                   .seatName(student.getSeat().getSeatName())
-                   .location(student.getSeat().getLocation())
-                   .status(student.getSeat().getStatus());
+        // Build response map with seat + allocation details
+        Map<String, Object> response = new LinkedHashMap<>();
+
+        if (!activeAllocs.isEmpty()) {
+            SeatAllocation alloc = activeAllocs.get(0);
+            response.put("id", alloc.getSeat().getId());
+            response.put("seatName", alloc.getSeat().getSeatName());
+            response.put("location", alloc.getSeat().getLocation());
+            response.put("status", alloc.getSeat().getStatus());
+            response.put("allocationMode", alloc.getAllocationMode());
+            response.put("planName", alloc.getPlan() != null ? alloc.getPlan().getName() : null);
+            if (alloc.getSlot() != null) {
+                response.put("slotName", alloc.getSlot().getSlotName());
+                response.put("slotStart", alloc.getSlot().getStartTime());
+                response.put("slotEnd", alloc.getSlot().getEndTime());
+            }
+            if (alloc.getFlexStartTime() != null) {
+                response.put("flexStartTime", alloc.getFlexStartTime());
+                response.put("flexEndTime", alloc.getFlexEndTime());
+            }
+            response.put("allocatedAt", alloc.getAllocatedAt());
+        } else if (student.getSeat() != null) {
+            // Fallback: legacy seat assignment without allocation record
+            response.put("id", student.getSeat().getId());
+            response.put("seatName", student.getSeat().getSeatName());
+            response.put("location", student.getSeat().getLocation());
+            response.put("status", student.getSeat().getStatus());
         }
 
         if (student.getPlan() != null) {
-            PlanDTO planDTO = PlanDTO.builder()
-                    .id(student.getPlan().getId())
-                    .name(student.getPlan().getName())
-                    .duration(student.getPlan().getDuration())
-                    .price(student.getPlan().getPrice())
-                    .build();
-            builder.studentId(student.getId());
+            response.put("planName", student.getPlan().getName());
+            response.put("studentId", student.getId());
         }
 
-        return ResponseEntity.ok(builder.build());
+        return ResponseEntity.ok(response);
     }
 
     /** GET /api/student/my-fees — returns the logged-in student's fee records */
@@ -174,6 +196,22 @@ public class StudentController {
         }
 
         return ResponseEntity.ok(leaderboard);
+    }
+
+    /** GET /api/student/library-status — status banner info (trial/grace/expired messaging) */
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/library-status")
+    public ResponseEntity<?> getLibraryStatus() throws Exception {
+        User user = getLoggedInUser();
+        if (user.getLibrary() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        com.learningJWT.LearningTemplate.Paylod.DTO.LibraryDTO dto =
+                com.learningJWT.LearningTemplate.Mapper.LibraryMapper.toDTO(user.getLibrary());
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("status", dto.getStatus());
+        response.put("daysRemainingInCurrentPhase", dto.getDaysRemainingInCurrentPhase());
+        return ResponseEntity.ok(response);
     }
 
     // ===================== Deposit (admin's QR/UPI/phone) =====================

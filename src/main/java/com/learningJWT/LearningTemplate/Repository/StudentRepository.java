@@ -12,5 +12,6 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Student findByUserId(Long studentId) throws  Exception;
     Optional<Student> findByLibraryIdAndSeatIdAndPlanId(Long libraryId, Long seatId, Long planId);
     int countByLibraryId(Long libraryId);
+    long countByLibraryIdAndActiveTrue(Long libraryId);
 
 }
