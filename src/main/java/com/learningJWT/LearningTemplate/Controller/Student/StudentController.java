@@ -125,19 +125,14 @@ public class StudentController {
         if (student == null) {
             return ResponseEntity.notFound().build();
         }
-        java.util.Map<String, Object> profile = new java.util.LinkedHashMap<>();
-        profile.put("id", student.getId());
-        profile.put("fullName", student.getFullName());
-        profile.put("email", student.getEmail());
-        profile.put("phone", student.getPhone());
-        profile.put("username", user.getUsername());
-        profile.put("admissionNumber", student.getAdmissionNumber());
-        profile.put("photoUrl", student.getPhotoUrl());
-        profile.put("registrationStatus", student.getRegistrationStatus());
-        profile.put("active", student.isActive());
-        profile.put("seatName", student.getSeat() != null ? student.getSeat().getSeatName() : null);
-        profile.put("planName", student.getPlan() != null ? student.getPlan().getName() : null);
-        return ResponseEntity.ok(profile);
+        StudentDTO dto = StudentDTO.builder()
+                .id(student.getId())
+                .fullName(student.getFullName())
+                .email(student.getEmail())
+                .phone(student.getPhone())
+                .username(user.getUsername())
+                .build();
+        return ResponseEntity.ok(dto);
     }
 
     /** GET /api/student/attendance-mode — returns library's attendance mode for this student */

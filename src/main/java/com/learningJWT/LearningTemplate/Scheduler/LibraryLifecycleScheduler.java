@@ -151,4 +151,3 @@ public class LibraryLifecycleScheduler {
         }
     }
 }
-// NOTE: Notification hooks are added at the service layer (LibraryLifecycleService)

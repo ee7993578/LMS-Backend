@@ -54,21 +54,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         library.setCreatedAt(LocalDateTime.now());
         library.setUpdatedAt(LocalDateTime.now());
 
-        // Auto-generate unique library code for self-registration
-        if (library.getLibraryCode() == null) {
-            String code;
-            String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            java.util.Random rnd = new java.util.Random();
-            do {
-                StringBuilder sb = new StringBuilder("LIB-");
-                for (int i = 0; i < 6; i++) sb.append(chars.charAt(rnd.nextInt(chars.length())));
-                code = sb.toString();
-            } while (libraryRepository.findByLibraryCode(code).isPresent());
-            library.setLibraryCode(code);
-        }
-        library.setRegistrationEnabled(true);
-        library.setRequireAdminApproval(true);
-
         // If the caller (e.g. SuperAdmin manually creating a library) explicitly chose a plan,
         // honor that. Otherwise — and this is the normal public self-registration path — fall
         // back to the default (lowest planOrder, i.e. the free/starter) plan automatically.

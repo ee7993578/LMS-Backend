@@ -28,22 +28,6 @@ public class Library {
     private String phone;
     private String website;
     private String gstNumber;
-    private String logoUrl;
-    private String primaryColor;
-    private String secondaryColor;
-    private String customFooter;
-    private String timezone;
-
-    // ── Student Self-Registration ──────────────────────────────────────────
-    /** Unique public code students use to self-register e.g. LIB-A3K9 */
-    @Column(unique = true, length = 20)
-    private String libraryCode;
-
-    /** Master toggle — if false, public self-registration is disabled */
-    private boolean registrationEnabled = true;
-
-    /** If true admin still reviews; if false student is auto-approved on submit */
-    private boolean requireAdminApproval = true;
 
     // IMPORTANT: explicit VARCHAR columnDefinition. Without this, Hibernate's ddl-auto=update
     // creates a MySQL ENUM(...) column baked with whatever Status values existed at the time

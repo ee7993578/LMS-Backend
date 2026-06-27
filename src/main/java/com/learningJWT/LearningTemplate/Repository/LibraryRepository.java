@@ -19,5 +19,4 @@ public interface LibraryRepository extends JpaRepository<Library,Long> {
     List<Library> findByStatusAndStatusChangedAtBefore(Status status, LocalDateTime cutoff);
 
     List<Library> findByStatusNot(Status status);
-    java.util.Optional<Library> findByLibraryCode(String libraryCode);
 }

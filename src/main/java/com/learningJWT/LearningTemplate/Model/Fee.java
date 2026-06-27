@@ -6,13 +6,6 @@ import lombok.*;
 
 import java.time.LocalDate;
 @Entity
-@Table(name = "fee", indexes = {
-    @Index(name = "idx_fee_library",          columnList = "library_id"),
-    @Index(name = "idx_fee_student",          columnList = "student_id"),
-    @Index(name = "idx_fee_lib_month",        columnList = "library_id,month_id"),
-    @Index(name = "idx_fee_lib_status",       columnList = "library_id,fee_status"),
-    @Index(name = "idx_fee_lib_month_status", columnList = "library_id,month_id,fee_status"),
-})
 @Getter
 @Setter
 @NoArgsConstructor

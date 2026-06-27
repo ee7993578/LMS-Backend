@@ -5,7 +5,6 @@ import com.learningJWT.LearningTemplate.Paylod.DTO.UserDto;
 import com.learningJWT.LearningTemplate.Paylod.Response.AuthResponse;
 import com.learningJWT.LearningTemplate.Services.AuthService;
 import lombok.RequiredArgsConstructor;
-import com.learningJWT.LearningTemplate.Services.PasswordResetService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,8 +13,6 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*") // Optional: enable if frontend is separate
 public class AuthController {
-
-    private final PasswordResetService passwordResetService;
 
     private final AuthService authService;
 
@@ -53,36 +50,7 @@ public class AuthController {
         }
     }
 
-
-    // ── Password Reset Flow ─────────────────────────────────────────────────
-    @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@RequestBody java.util.Map<String,String> body) {
-        try {
-            passwordResetService.initiateReset(body.get("email"));
-            return ResponseEntity.ok(java.util.Map.of("message",
-                "If that email is registered, a reset link has been sent."));
-        } catch (Exception e) {
-            return ResponseEntity.ok(java.util.Map.of("message",
-                "If that email is registered, a reset link has been sent."));
-        }
-    }
-
-    @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody java.util.Map<String,String> body) {
-        try {
-            String token    = body.get("token");
-            String password = body.get("password");
-            if (token == null || password == null || password.length() < 6)
-                return ResponseEntity.badRequest().body(java.util.Map.of("message","Invalid request"));
-            passwordResetService.resetPassword(token, password);
-            return ResponseEntity.ok(java.util.Map.of("message","Password reset successful. Please login."));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
-        }
-    }
-
-    // ── Test Endpoint ───────────────────────────────────────────────────────
-
+    // ------------------- Test Endpoint -------------------
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("AuthController is working fine ✅");

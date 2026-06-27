@@ -15,8 +15,6 @@ import com.learningJWT.LearningTemplate.Services.FeeReceiptService;
 import com.learningJWT.LearningTemplate.Services.FeeServices;
 import com.learningJWT.LearningTemplate.Services.PaymentProofService;
 import com.learningJWT.LearningTemplate.Services.Impl.FeeAuditLogService;
-import com.learningJWT.LearningTemplate.Services.NotificationService;
-import com.learningJWT.LearningTemplate.Enum.NotificationType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,7 +38,6 @@ public class PaymentProofServiceImpl implements PaymentProofService {
     private final FeeReceiptService feeReceiptService;
     private final FeeAuditLogService feeAuditLogService;
     private final FeeRepository feeRepository;
-    private final NotificationService notificationService;
 
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
@@ -148,15 +145,6 @@ public class PaymentProofServiceImpl implements PaymentProofService {
                         String.format("Received=%.2f, Concession=%.2f, LateFee=%.2f, Balance=%.2f, ProofId=%d",
                                 feeDTO.getReceive(), feeDTO.getConcession(), feeDTO.getLateFee(),
                                 updatedFee.getBalance(), proofId));
-                // Send in-app notification to student
-                if (feeEntity.getStudent() != null && feeEntity.getStudent().getUser() != null) {
-                    notificationService.send(
-                            feeEntity.getStudent().getUser(), feeEntity.getLibrary(),
-                            NotificationType.PAYMENT_APPROVED,
-                            "Payment Verified",
-                            String.format("Your payment of ₹%.0f has been verified. Balance: ₹%.0f", feeDTO.getReceive(), updatedFee.getBalance()),
-                            "/student/receipts");
-                }
             }
         } catch (Exception ignored) {
             // Receipt generation failure should not fail the verify flow
