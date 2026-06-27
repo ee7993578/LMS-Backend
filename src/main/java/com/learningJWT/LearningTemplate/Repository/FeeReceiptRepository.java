@@ -19,5 +19,5 @@ public interface FeeReceiptRepository extends JpaRepository<FeeReceipt, Long> {
 
     Optional<FeeReceipt> findByReceiptNumber(String receiptNumber);
 
-    List<FeeReceipt> findByFee_FeeIdOrderByGeneratedAtDesc(Long feeId);
+    List<FeeReceipt> findByFeeIdOrderByGeneratedAtDesc(Long feeId);
 }

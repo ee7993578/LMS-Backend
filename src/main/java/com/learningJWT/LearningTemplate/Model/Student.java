@@ -57,6 +57,21 @@ public class Student {
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SeatAllocation> allocations = new ArrayList<>();
 
+    // ── Self-Registration Fields ──────────────────────────────────────────────
+    /** PENDING_APPROVAL | APPROVED | REJECTED */
+    @Column(length = 30)
+    private String registrationStatus; // null = admin-created (always approved)
+
+    private String fatherName;
+    private String address;
+    private String photoUrl;
+    private String aadharPhotoUrl;
+
+    @Column(columnDefinition = "datetime")
+    private java.time.LocalDateTime approvedAt;
+
+    private String rejectionReason;
+
     private boolean active = true;
     private boolean buffer = false;
 
