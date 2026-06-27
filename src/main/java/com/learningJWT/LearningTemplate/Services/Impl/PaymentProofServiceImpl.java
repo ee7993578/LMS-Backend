@@ -7,11 +7,14 @@ import com.learningJWT.LearningTemplate.Model.Student;
 import com.learningJWT.LearningTemplate.Model.User;
 import com.learningJWT.LearningTemplate.Paylod.DTO.FeeDTO;
 import com.learningJWT.LearningTemplate.Paylod.DTO.PaymentProofDTO;
+import com.learningJWT.LearningTemplate.Repository.FeeRepository;
 import com.learningJWT.LearningTemplate.Repository.PaymentProofRepository;
 import com.learningJWT.LearningTemplate.Repository.StudentRepository;
 import com.learningJWT.LearningTemplate.Repository.UserRepository;
+import com.learningJWT.LearningTemplate.Services.FeeReceiptService;
 import com.learningJWT.LearningTemplate.Services.FeeServices;
 import com.learningJWT.LearningTemplate.Services.PaymentProofService;
+import com.learningJWT.LearningTemplate.Services.Impl.FeeAuditLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -32,6 +35,9 @@ public class PaymentProofServiceImpl implements PaymentProofService {
     private final StudentRepository studentRepository;
     private final FileStorageService fileStorageService;
     private final FeeServices feeServices;
+    private final FeeReceiptService feeReceiptService;
+    private final FeeAuditLogService feeAuditLogService;
+    private final FeeRepository feeRepository;
 
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
@@ -110,8 +116,7 @@ public class PaymentProofServiceImpl implements PaymentProofService {
             throw new Exception("Not authorized to verify this proof");
         }
 
-        // Additive update: adds this payment on top of whatever the student already paid,
-        // applied to the oldest outstanding month — does not overwrite prior deposits.
+        // Additive update: adds this payment on top of whatever the student already paid
         FeeDTO updatedFee = feeServices.applyPayment(
                 proof.getStudent().getId(),
                 feeDTO.getReceive(),
@@ -123,6 +128,27 @@ public class PaymentProofServiceImpl implements PaymentProofService {
         proof.setStatus(ProofStatus.VERIFIED);
         proof.setVerifiedAt(LocalDateTime.now());
         paymentProofRepository.save(proof);
+
+        // Generate receipt automatically
+        try {
+            com.learningJWT.LearningTemplate.Model.Fee feeEntity = feeRepository.findById(updatedFee.getFeeId())
+                    .orElse(null);
+            if (feeEntity != null) {
+                feeReceiptService.generateReceipt(feeEntity, proof,
+                        feeDTO.getReceive(), feeDTO.getConcession(), feeDTO.getLateFee(),
+                        feeDTO.getPaymentMode() != null ? feeDTO.getPaymentMode() : "UPI/Online",
+                        feeDTO.getTransactionRef());
+
+                // Audit log
+                feeAuditLogService.log(feeEntity, feeEntity.getLibrary(), feeEntity.getStudent(),
+                        "VERIFY_PAYMENT",
+                        String.format("Received=%.2f, Concession=%.2f, LateFee=%.2f, Balance=%.2f, ProofId=%d",
+                                feeDTO.getReceive(), feeDTO.getConcession(), feeDTO.getLateFee(),
+                                updatedFee.getBalance(), proofId));
+            }
+        } catch (Exception ignored) {
+            // Receipt generation failure should not fail the verify flow
+        }
 
         return updatedFee;
     }

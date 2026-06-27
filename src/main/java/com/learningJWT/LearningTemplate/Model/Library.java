@@ -16,7 +16,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "libraries")
 public class Library {
 
     @Id
@@ -28,6 +27,7 @@ public class Library {
     private String email;
     private String phone;
     private String website;
+    private String gstNumber;
 
     // IMPORTANT: explicit VARCHAR columnDefinition. Without this, Hibernate's ddl-auto=update
     // creates a MySQL ENUM(...) column baked with whatever Status values existed at the time

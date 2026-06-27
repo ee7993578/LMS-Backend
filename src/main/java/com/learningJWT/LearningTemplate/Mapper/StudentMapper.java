@@ -17,6 +17,7 @@ public class StudentMapper {
         student.setFullName(dto.getFullName());
         student.setEmail(dto.getEmail());
         student.setPhone(dto.getPhone());
+        student.setAdmissionNumber(dto.getAdmissionNumber());
         student.setDateOfJoin(dto.getDateOfJoin() != null ? dto.getDateOfJoin() : LocalDate.now());
         return student;
     }
@@ -28,6 +29,7 @@ public class StudentMapper {
         dto.setFullName(student.getFullName());
         dto.setEmail(student.getEmail());
         dto.setPhone(student.getPhone());
+        dto.setAdmissionNumber(student.getAdmissionNumber());
         dto.setSeatId(student.getSeat() != null ? student.getSeat().getId() : null);
         dto.setPlanId(student.getPlan() != null ? student.getPlan().getId() : null);
         dto.setPlan(student.getPlan() != null ? PlanMapper.toDto(student.getPlan()) : null);

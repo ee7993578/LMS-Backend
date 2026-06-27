@@ -16,6 +16,7 @@ public class StudentDTO {
     private String fullName;
     private String email;
     private String phone;
+    private String admissionNumber;
     private SeatDTO seat;
     private PlanDTO plan;
     private Long planId;

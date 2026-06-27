@@ -16,6 +16,7 @@ import com.learningJWT.LearningTemplate.Repository.StudentRepository;
 import com.learningJWT.LearningTemplate.Repository.UserRepository;
 import com.learningJWT.LearningTemplate.Services.PaymentProofService;
 import com.learningJWT.LearningTemplate.Services.PaymentSettingsService;
+import com.learningJWT.LearningTemplate.Services.FeeReceiptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,6 +40,7 @@ public class StudentController {
     private final PaymentSettingsService paymentSettingsService;
     private final PaymentProofService paymentProofService;
     private final SeatAllocationRepository seatAllocationRepository;
+    private final FeeReceiptService feeReceiptService;
 
     private User getLoggedInUser() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -249,6 +251,28 @@ public class StudentController {
     public ResponseEntity<?> getMyPaymentProofs() {
         try {
             return ResponseEntity.ok(paymentProofService.getMyProofs());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /** GET /api/student/receipts — the logged-in student's fee receipts */
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/receipts")
+    public ResponseEntity<?> getMyReceipts() {
+        try {
+            return ResponseEntity.ok(feeReceiptService.getMyReceipts());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /** GET /api/student/receipts/{id} — view a specific receipt */
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/receipts/{id}")
+    public ResponseEntity<?> getReceiptById(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(feeReceiptService.getReceiptById(id));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

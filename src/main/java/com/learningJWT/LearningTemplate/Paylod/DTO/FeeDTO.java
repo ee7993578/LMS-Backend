@@ -34,4 +34,6 @@ public class FeeDTO {
     private double concession;
     private double lateFee;
     private FeeStatus feeStatus;
+    private String paymentMode;
+    private String transactionRef;
 }
