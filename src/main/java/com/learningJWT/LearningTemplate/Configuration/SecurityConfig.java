@@ -56,8 +56,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        List<String> origins = Arrays.asList(allowedOrigins.split(","));
-        configuration.setAllowedOrigins(origins);
+
+        // Explicit origins from config (local dev + main production domain),
+        // plus a wildcard pattern so every Vercel preview/deployment URL
+        // (e.g. lms-frontend-<hash>-<team>.vercel.app) is allowed without
+        // having to update this list on every deploy.
+        List<String> origins = new java.util.ArrayList<>(Arrays.asList(allowedOrigins.split(",")));
+        origins.add("https://*.vercel.app");
+
+        configuration.setAllowedOriginPatterns(origins);
         configuration.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
