@@ -89,8 +89,8 @@ public class StudentSelfRegistrationService {
 
         // Upload files if provided
         String photoUrl = null, aadharUrl = null;
-        if (photo != null && !photo.isEmpty()) photoUrl = fileStorageService.storeFile(photo);
-        if (aadharPhoto != null && !aadharPhoto.isEmpty()) aadharUrl = fileStorageService.storeFile(aadharPhoto);
+        if (photo != null && !photo.isEmpty()) photoUrl = fileStorageService.store(photo, "photos");
+        if (aadharPhoto != null && !aadharPhoto.isEmpty()) aadharUrl = fileStorageService.store(aadharPhoto, "aadhar");
 
         // Generate temp username & password
         String tempUsername = generateUsername(fullName, lib.getId());
@@ -167,8 +167,8 @@ public class StudentSelfRegistrationService {
     // ── Admin: approve a student — assign seat + plan ────────────────────────
     @Transactional
     public Map<String, Object> approveStudent(Long studentId, Long seatId, Long planId,
-                                               String admissionNumber, double monthlyFee,
-                                               String adminUsername) throws Exception {
+                                              String admissionNumber, double monthlyFee,
+                                              String adminUsername) throws Exception {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new Exception("Student not found"));
 
@@ -253,8 +253,8 @@ public class StudentSelfRegistrationService {
     // ── Admin: update registration settings ─────────────────────────────────
     @Transactional
     public Map<String, Object> updateSettings(Long libraryId, boolean enabled,
-                                               boolean requireApproval,
-                                               boolean regenerateCode) {
+                                              boolean requireApproval,
+                                              boolean regenerateCode) {
         Library lib = libraryRepository.findById(libraryId)
                 .orElseThrow(() -> new RuntimeException("Library not found"));
         lib.setRegistrationEnabled(enabled);

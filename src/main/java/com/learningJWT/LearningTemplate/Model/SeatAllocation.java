@@ -14,11 +14,11 @@ import java.time.LocalTime;
 @AllArgsConstructor
 @Builder
 @Table(name = "seat_allocation",
-    indexes = {
-        @Index(name = "idx_sa_student_active", columnList = "student_id,active"),
-        @Index(name = "idx_sa_slot_active", columnList = "slot_id,active"),
-        @Index(name = "idx_sa_library_active", columnList = "library_id,active")
-    }
+        indexes = {
+                @Index(name = "idx_sa_student_active", columnList = "student_id,active"),
+                @Index(name = "idx_sa_slot_active", columnList = "slot_id,active"),
+                @Index(name = "idx_sa_library_active", columnList = "library_id,active")
+        }
 )
 public class SeatAllocation {
 
@@ -58,6 +58,9 @@ public class SeatAllocation {
 
     @Column(columnDefinition = "datetime")
     private LocalDateTime deallocatedAt;
+
+    @Column(name = "end_date")
+    private java.time.LocalDate endDate;
 
     @ManyToOne
     @JoinColumn(name = "library_id")

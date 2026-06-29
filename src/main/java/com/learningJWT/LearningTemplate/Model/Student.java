@@ -9,6 +9,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Table(name = "student", indexes = {
+    @Index(name = "idx_student_library",  columnList = "library_id"),
+    @Index(name = "idx_student_user",     columnList = "user_id"),
+    @Index(name = "idx_student_phone",    columnList = "phone"),
+    @Index(name = "idx_student_reg_status", columnList = "registration_status"),
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,7 +31,7 @@ public class Student {
     private String phone;
     private String admissionNumber;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "library_id")
     private Library library;
 
@@ -33,7 +39,7 @@ public class Student {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seat_id")
     private Seat seat;
 
@@ -56,6 +62,21 @@ public class Student {
     // All allocations (active and history) - ManyToOne on SeatAllocation side
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SeatAllocation> allocations = new ArrayList<>();
+
+    // ── Self-Registration Fields ──────────────────────────────────────────────
+    /** PENDING_APPROVAL | APPROVED | REJECTED */
+    @Column(length = 30)
+    private String registrationStatus; // null = admin-created (always approved)
+
+    private String fatherName;
+    private String address;
+    private String photoUrl;
+    private String aadharPhotoUrl;
+
+    @Column(columnDefinition = "datetime")
+    private java.time.LocalDateTime approvedAt;
+
+    private String rejectionReason;
 
     private boolean active = true;
     private boolean buffer = false;

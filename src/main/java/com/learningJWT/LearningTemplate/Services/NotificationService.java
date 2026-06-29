@@ -7,6 +7,7 @@ import com.learningJWT.LearningTemplate.Repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
 
+    @Async
     public void send(User user, Library library, NotificationType type,
                      String title, String message, String actionUrl) {
         Notification n = Notification.builder()
@@ -34,6 +36,7 @@ public class NotificationService {
         notificationRepository.save(n);
     }
 
+    @Async
     public void sendToLibraryAdmin(Library library, NotificationType type,
                                     String title, String message) {
         if (library != null && library.getAdmin() != null) {

@@ -13,18 +13,22 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "attendance")
+@Table(name = "attendance", indexes = {
+    @Index(name = "idx_att_student_date",  columnList = "student_id,attendance_date"),
+    @Index(name = "idx_att_library_date",  columnList = "library_id,attendance_date"),
+    @Index(name = "idx_att_date",          columnList = "attendance_date"),
+})
 public class Attendance {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id")
     private Student student;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "library_id")
     private Library library;
 

@@ -7,6 +7,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "fee_receipt", indexes = {
+    @Index(name = "idx_receipt_student",  columnList = "student_id"),
+    @Index(name = "idx_receipt_library",  columnList = "library_id"),
+    @Index(name = "idx_receipt_fee",      columnList = "fee_id"),
+    @Index(name = "idx_receipt_date",     columnList = "payment_date"),
+})
 @Getter
 @Setter
 @NoArgsConstructor
