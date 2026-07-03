@@ -6,6 +6,8 @@ import lombok.*;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -46,4 +48,12 @@ public class Attendance {
 
     private Long totalStudyMinutes;
     private Long totalBreakMinutes;
+
+    // Every punch-in/punch-out pair for this day is recorded as its own slot so the
+    // student can see "Slot 1", "Slot 2" ... and the running total never resets when
+    // they punch in again — it just keeps adding to totalStudyMinutes above.
+    @OneToMany(mappedBy = "attendance", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("slotNumber ASC")
+    @Builder.Default
+    private List<AttendanceSlot> slots = new ArrayList<>();
 }

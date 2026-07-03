@@ -52,4 +52,21 @@ public class Notification {
 
     /** Optional deep-link URL shown in notification */
     private String actionUrl;
+
+    /**
+     * Set only for library-wide broadcasts sent by a Library Admin. All the per-student
+     * copies created for one broadcast share the same UUID so they can be identified /
+     * deleted together as a single logical notification.
+     */
+    @Column(name = "broadcast_group_id", length = 64)
+    private String broadcastGroupId;
+
+    /**
+     * Only set for library-wide broadcasts: createdAt + 24h. While now() is before this,
+     * the notification is shown as a banner on the student dashboard. It always stays
+     * visible in the bell icon regardless of this field (unless deleted by admin).
+     */
+    @Column(name = "dashboard_expires_at", columnDefinition = "datetime")
+    private LocalDateTime dashboardExpiresAt;
 }
+

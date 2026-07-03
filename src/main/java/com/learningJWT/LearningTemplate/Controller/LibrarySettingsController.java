@@ -56,6 +56,7 @@ public class LibrarySettingsController {
         if (dto.getWebsite() != null) library.setWebsite(dto.getWebsite());
         if (dto.getAllocationMode() != null) library.setAllocationMode(dto.getAllocationMode());
         if (dto.getAttendanceMode() != null) library.setAttendanceMode(dto.getAttendanceMode());
+        if (dto.getRegistrationEnabled() != null) library.setRegistrationEnabled(dto.getRegistrationEnabled());
         library.setUpdatedAt(LocalDateTime.now());
 
         libraryRepository.save(library);

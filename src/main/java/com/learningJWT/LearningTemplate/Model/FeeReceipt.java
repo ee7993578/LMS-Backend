@@ -12,6 +12,11 @@ import java.time.LocalDateTime;
     @Index(name = "idx_receipt_library",  columnList = "library_id"),
     @Index(name = "idx_receipt_fee",      columnList = "fee_id"),
     @Index(name = "idx_receipt_date",     columnList = "payment_date"),
+}, uniqueConstraints = {
+    // Receipt numbers only need to be unique WITHIN a library, not globally.
+    // (Library code is embedded in the number itself, so cross-library collisions
+    // can't happen in practice, but this constraint is the real safety net.)
+    @UniqueConstraint(name = "uk_receipt_library_number", columnNames = {"library_id", "receipt_number"})
 })
 @Getter
 @Setter
@@ -24,8 +29,8 @@ public class FeeReceipt {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** e.g. RCPT-2026-00124 */
-    @Column(nullable = false, unique = true)
+    /** e.g. RCPT-LIB-A3K9-2026-00124 (library code embedded so numbers never clash across libraries) */
+    @Column(nullable = false)
     private String receiptNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)

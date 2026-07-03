@@ -23,6 +23,7 @@ public class PublicController {
     private final LibraryPlanServices libraryPlanServices;
     private final SuperAdminService superAdminService;
     private final QRRepository qrRepository;
+    private final com.learningJWT.LearningTemplate.Services.LibrarySignupPaymentService librarySignupPaymentService;
     @GetMapping("/plan")
     public ResponseEntity<List<LibraryPlanDTO>> getAllPlan() throws Exception{
         return ResponseEntity.ok(libraryPlanServices.getActivePlans());
@@ -37,6 +38,43 @@ public class PublicController {
             return ResponseEntity.ok(createdLibrary);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // ===================== Paid-plan signup (Razorpay) =====================
+    // If the chosen plan is the free/starter (lowest planOrder) plan, this behaves exactly
+    // like /create above — library is created immediately, requiresPayment=false.
+    // If a paid plan is chosen, nothing is created yet: a Razorpay order is returned and the
+    // library is only actually created once /create/verify confirms payment.
+
+    @PostMapping("/create/initiate")
+    public ResponseEntity<?> initiateLibrarySignup(@RequestBody LibraryDTO dto) {
+        try {
+            return ResponseEntity.ok(librarySignupPaymentService.initiateSignup(dto));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/create/verify")
+    public ResponseEntity<?> verifyLibrarySignup(
+            @RequestBody com.learningJWT.LearningTemplate.Paylod.DTO.RazorpayVerifyRequestDTO body) {
+        try {
+            return ResponseEntity.ok(librarySignupPaymentService.verifySignup(body));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/create/cancel")
+    public ResponseEntity<?> cancelLibrarySignup(@RequestBody java.util.Map<String, Object> body) {
+        try {
+            Long paymentRecordId = body.get("paymentRecordId") != null
+                    ? Long.parseLong(body.get("paymentRecordId").toString()) : null;
+            librarySignupPaymentService.cancelSignup(paymentRecordId);
+            return ResponseEntity.ok(java.util.Map.of("message", "Cancelled"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
         }
     }
     /**

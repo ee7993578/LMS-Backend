@@ -38,6 +38,7 @@ public class LibraryMapper {
         dto.setStatus(library.getStatus());
         dto.setAllocationMode(library.getAllocationMode() != null ? library.getAllocationMode() : AllocationMode.FLEXIBLE_HOUR);
         dto.setAttendanceMode(library.getAttendanceMode() != null ? library.getAttendanceMode() : AttendanceMode.BOTH);
+        dto.setRegistrationEnabled(library.isRegistrationEnabled());
 
         dto.setTrialStartDate(library.getTrialStartDate());
         dto.setTrialEndDate(library.getTrialEndDate());

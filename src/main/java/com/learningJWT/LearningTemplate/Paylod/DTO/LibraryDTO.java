@@ -19,6 +19,7 @@ public class LibraryDTO {
     private Status status;
     private AllocationMode allocationMode;
     private AttendanceMode attendanceMode;
+    private Boolean registrationEnabled;
     private String adminUsername;
     private String adminPassword;
     private String adminFullName;

@@ -38,6 +38,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     private final SubscriptionRepository subscriptionRepository;
     private final StudentRepository studentRepository;
     private final LibraryLifecycleService lifecycleService;
+    private final com.learningJWT.LearningTemplate.Repository.QRRepository qrRepository;
 
     @Override
     public LibraryDTO createLibrary(LibraryDTO dto) throws Exception {
@@ -84,6 +85,16 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         }
 
         libraryRepository.save(library);
+
+        // Attendance + self-registration QR is provisioned automatically right here — the admin
+        // should never have to remember to "generate a QR code" as a setup step. Both the free
+        // self-serve path and the Razorpay paid-signup path funnel through this same method, so
+        // this covers every way a library gets created (including SuperAdmin manual creation).
+        com.learningJWT.LearningTemplate.Model.QR qr = new com.learningJWT.LearningTemplate.Model.QR();
+        qr.setQrCodeValue("library" + library.getId() + "-" + java.util.UUID.randomUUID());
+        qr.setLibrary(library);
+        qr.setStatus(Status.ACTIVE);
+        qrRepository.save(qr);
 
         User admin = new User();
         admin.setUsername(dto.getAdminUsername());

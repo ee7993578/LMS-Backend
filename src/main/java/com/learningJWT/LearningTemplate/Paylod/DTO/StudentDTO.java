@@ -25,4 +25,16 @@ public class StudentDTO {
     private String password;
     private LocalDate dateOfJoin;
     private LocalDate subscriptionExpiryDate; // computed: dateOfJoin + plan.subscriptionDays
+
+    // ── Subscription (StudentSubscription) fields — populated on read, optional on write ──
+    /** When updating a student and planId differs from their current plan, controls how
+     *  the change is applied: EXTEND (default) or REPLACE. */
+    private com.learningJWT.LearningTemplate.Enum.SubscriptionChangeMode changeMode;
+    private LocalDate subscriptionCycleStart;
+    private LocalDate subscriptionCycleEnd;
+    private Long subscriptionDaysRemaining;
+    private String subscriptionStatus;
+    private Double subscriptionPayable;
+    private Double subscriptionPaid;
+    private Double subscriptionBalance;
 }

@@ -35,14 +35,23 @@ public class StudentMapper {
         dto.setPlan(student.getPlan() != null ? PlanMapper.toDto(student.getPlan()) : null);
         dto.setDateOfJoin(student.getDateOfJoin());
 
-        // Compute subscription expiry: dateOfJoin + subscriptionDays
+        // Fallback expiry (only used when no active StudentSubscription row exists yet —
+        // normally StudentSubscriptionService.enrichStudentDTO overrides this with the
+        // real cycle end). Month-based plans expire on the same date N month(s) later;
+        // day-based/custom plans keep the old dateOfJoin + subscriptionDays behaviour.
         if (student.getDateOfJoin() != null && student.getPlan() != null) {
-            Integer subDays = student.getPlan().getSubscriptionDays();
-            if (subDays == null && student.getPlan().getDuration() != null) {
-                subDays = student.getPlan().getDuration().intValue();
-            }
-            if (subDays != null && subDays > 0) {
-                dto.setSubscriptionExpiryDate(student.getDateOfJoin().plusDays(subDays));
+            com.learningJWT.LearningTemplate.Enum.PlanDurationType type = student.getPlan().getDurationType();
+            Integer months = student.getPlan().getDurationMonths();
+            if (type == com.learningJWT.LearningTemplate.Enum.PlanDurationType.MONTHS && months != null && months > 0) {
+                dto.setSubscriptionExpiryDate(student.getDateOfJoin().plusMonths(months));
+            } else {
+                Integer subDays = student.getPlan().getSubscriptionDays();
+                if (subDays == null && student.getPlan().getDuration() != null) {
+                    subDays = student.getPlan().getDuration().intValue();
+                }
+                if (subDays != null && subDays > 0) {
+                    dto.setSubscriptionExpiryDate(student.getDateOfJoin().plusDays(subDays));
+                }
             }
         }
 

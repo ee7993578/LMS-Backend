@@ -45,6 +45,20 @@ public class Library {
     /** If true admin still reviews; if false student is auto-approved on submit */
     private boolean requireAdminApproval = true;
 
+    /**
+     * If true, a student's seat is automatically released as soon as their
+     * StudentSubscription flips to EXPIRED. Default OFF so admins keep manual control
+     * over when a seat actually gets freed up.
+     */
+    @Builder.Default
+    private boolean autoReleaseSeatOnExpiry = false;
+
+    /** Tracks whether the one-time "Welcome / let's get set up" modal has been shown to this
+     *  library's admin. Set true the first time GET onboarding/status is fetched after login,
+     *  or explicitly via PUT /api/libraryadmin/onboarding/welcome-seen. */
+    @Builder.Default
+    private boolean onboardingWelcomeShown = false;
+
     // IMPORTANT: explicit VARCHAR columnDefinition. Without this, Hibernate's ddl-auto=update
     // creates a MySQL ENUM(...) column baked with whatever Status values existed at the time
     // the table was first created. Adding new enum values later (TRIAL, TRIAL_READ_ONLY, etc.)

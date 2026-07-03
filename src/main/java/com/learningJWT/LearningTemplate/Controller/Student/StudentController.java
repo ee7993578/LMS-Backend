@@ -41,6 +41,7 @@ public class StudentController {
     private final PaymentProofService paymentProofService;
     private final SeatAllocationRepository seatAllocationRepository;
     private final FeeReceiptService feeReceiptService;
+    private final com.learningJWT.LearningTemplate.Services.StudentSubscriptionService studentSubscriptionService;
 
     private User getLoggedInUser() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -49,6 +50,26 @@ public class StudentController {
                     .orElseThrow(() -> new Exception("Logged-in user not found"));
         }
         throw new Exception("No authenticated user found");
+    }
+
+    /** GET /api/student/my-subscription — plan card + expiry banner data for the logged-in student */
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/my-subscription")
+    public ResponseEntity<?> getMySubscription() throws Exception {
+        User user = getLoggedInUser();
+        Student student = studentRepository.findByUserId(user.getId());
+        if (student == null) {
+            return ResponseEntity.notFound().build();
+        }
+        var activeOpt = studentSubscriptionService.getActiveSubscription(student.getId());
+        if (activeOpt.isEmpty()) {
+            // No StudentSubscription row yet (e.g. legacy student never migrated, or no plan assigned)
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("planName", student.getPlan() != null ? student.getPlan().getName() : null);
+            fallback.put("status", "NONE");
+            return ResponseEntity.ok(fallback);
+        }
+        return ResponseEntity.ok(studentSubscriptionService.toDTO(activeOpt.get()));
     }
 
     /** GET /api/student/my-seat — returns the logged-in student's seat, plan and slot/time allocation info */

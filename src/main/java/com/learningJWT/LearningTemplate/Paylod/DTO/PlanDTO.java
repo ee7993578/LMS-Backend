@@ -19,4 +19,8 @@ public class PlanDTO {
     private Integer hoursPerDay;
     private Integer studyDays;
     private Integer subscriptionDays;
+
+    // "MONTHS" (dropdown: 1/2/3/4/6/12) or "DAYS" (custom option). Defaults to DAYS.
+    private String durationType;
+    private Integer durationMonths; // used only when durationType = MONTHS
 }

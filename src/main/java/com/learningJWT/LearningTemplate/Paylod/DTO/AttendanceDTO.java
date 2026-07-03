@@ -5,6 +5,7 @@ import com.learningJWT.LearningTemplate.Enum.AttendanceStatus;
 import lombok.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -28,5 +29,9 @@ public class AttendanceDTO {
 
     private Long totalStudyMinutes;
     private Long totalBreakMinutes;
+
+    // Every punch in/out pair for this day, in order (Slot 1, Slot 2, ...).
+    // The last slot has punchOut == null while the student is currently punched in.
+    private List<AttendanceSlotDTO> slots;
 
 }

@@ -21,6 +21,7 @@ import com.learningJWT.LearningTemplate.Repository.StudentRepository;
 import com.learningJWT.LearningTemplate.Repository.UserRepository;
 import com.learningJWT.LearningTemplate.Services.LibraryAdminService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -49,6 +50,13 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
     private final SlotRepository slotRepository;
     private final com.learningJWT.LearningTemplate.Services.LibraryLifecycleService lifecycleService;
     private final com.learningJWT.LearningTemplate.Repository.LibraryPlanRepository libraryPlanRepository;
+    private final com.learningJWT.LearningTemplate.Services.StudentSubscriptionService studentSubscriptionService;
+
+    // Public frontend origin — the downloadable QR encodes "<frontendUrl>/qr/<value>" so any
+    // camera app can scan it and land on the QrScanLanding page (no login needed to register;
+    // logged-in students get auto-punched). Configure via app.frontend-url in application.properties.
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
 
     private User getLoggedInAdmin() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -112,7 +120,17 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
 
         studentRepository.save(student);
 
-        return StudentMapper.toDTO(student);
+        if (dto.getPlanId() != null) {
+            Plan plan = planRepository.findById(dto.getPlanId())
+                    .orElseThrow(() -> new Exception("Plan not found"));
+            studentSubscriptionService.createInitialSubscription(student, plan, student.getDateOfJoin());
+        }
+
+        StudentDTO result = StudentMapper.toDTO(student);
+        if (dto.getPlanId() != null) {
+            studentSubscriptionService.enrichStudentDTO(result, student.getId());
+        }
+        return result;
     }
 
     @Override
@@ -131,7 +149,29 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         student.setUpdatedAt(LocalDateTime.now());
         studentRepository.save(student);
 
-        return StudentMapper.toDTO(student);
+        // If the admin picked a different plan for this student, route the change through
+        // StudentSubscriptionService so history/cycle-dates/Fee invoice all stay correct —
+        // instead of silently overwriting student.plan directly.
+        if (dto.getPlanId() != null) {
+            boolean planChanged = student.getPlan() == null || !student.getPlan().getId().equals(dto.getPlanId());
+            boolean hasNoSubscriptionYet = !studentSubscriptionService.getActiveSubscription(studentId).isPresent();
+            if (planChanged || hasNoSubscriptionYet) {
+                com.learningJWT.LearningTemplate.Enum.SubscriptionChangeMode mode =
+                        dto.getChangeMode() != null ? dto.getChangeMode()
+                                : com.learningJWT.LearningTemplate.Enum.SubscriptionChangeMode.EXTEND;
+                if (hasNoSubscriptionYet && !planChanged) {
+                    Plan plan = planRepository.findById(dto.getPlanId())
+                            .orElseThrow(() -> new Exception("Plan not found"));
+                    studentSubscriptionService.createInitialSubscription(student, plan, student.getDateOfJoin());
+                } else {
+                    studentSubscriptionService.changePlan(studentId, dto.getPlanId(), mode);
+                }
+            }
+        }
+
+        StudentDTO result = StudentMapper.toDTO(studentRepository.findById(studentId).orElse(student));
+        studentSubscriptionService.enrichStudentDTO(result, studentId);
+        return result;
     }
 
     @Override
@@ -177,9 +217,33 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
             return studentRepository.findByLibrary(library)
                     .stream()
                     .map(StudentMapper::toDTO)
+                    .peek(dto -> studentSubscriptionService.enrichStudentDTO(dto, dto.getId()))
                     .collect(Collectors.toList());
         } catch (Exception e) {
             return List.of();
+        }
+    }
+
+    // Dropdown ("1 month", "2 months", ... "1 year") sends durationType=MONTHS + durationMonths.
+    // Custom option sends durationType=DAYS (or omits it) with subscriptionDays as raw day count.
+    private void applyDurationType(Plan plan, PlanDTO dto) {
+        com.learningJWT.LearningTemplate.Enum.PlanDurationType type =
+                com.learningJWT.LearningTemplate.Enum.PlanDurationType.DAYS;
+        if (dto.getDurationType() != null) {
+            try {
+                type = com.learningJWT.LearningTemplate.Enum.PlanDurationType.valueOf(
+                        dto.getDurationType().trim().toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                // unknown value -> treat as custom/days
+            }
+        }
+        if (type == com.learningJWT.LearningTemplate.Enum.PlanDurationType.MONTHS
+                && dto.getDurationMonths() != null && dto.getDurationMonths() > 0) {
+            plan.setDurationType(com.learningJWT.LearningTemplate.Enum.PlanDurationType.MONTHS);
+            plan.setDurationMonths(dto.getDurationMonths());
+        } else {
+            plan.setDurationType(com.learningJWT.LearningTemplate.Enum.PlanDurationType.DAYS);
+            plan.setDurationMonths(null);
         }
     }
 
@@ -194,6 +258,7 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         plan.setHoursPerDay(dto.getHoursPerDay());
         plan.setStudyDays(dto.getStudyDays());
         plan.setSubscriptionDays(dto.getSubscriptionDays());
+        applyDurationType(plan, dto);
         Plan savedPlan = planRepository.save(plan);
 
         // Auto-generate slots if hoursPerDay is set and evenly divides 24
@@ -247,6 +312,7 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         plan.setHoursPerDay(dto.getHoursPerDay());
         plan.setStudyDays(dto.getStudyDays());
         plan.setSubscriptionDays(dto.getSubscriptionDays());
+        applyDurationType(plan, dto);
         return PlanMapper.toDto(planRepository.save(plan));
     }
 
@@ -300,7 +366,7 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
             newQR.setStatus(Status.ACTIVE);
             savedQR = qrRepository.save(newQR);
         }
-        return generateQRImage(savedQR.getQrCodeValue());
+        return generateQRImage(buildQRScanUrl(savedQR.getQrCodeValue()));
     }
 
     @Override
@@ -309,10 +375,20 @@ public class LibraryAdminServiceImpl implements LibraryAdminService {
         Long libraryId = user.getLibrary().getId();
         QR qr = qrRepository.findByLibraryId(libraryId);
         if (qr != null) {
-            return generateQRImage(qr.getQrCodeValue());
+            return generateQRImage(buildQRScanUrl(qr.getQrCodeValue()));
         } else {
             throw new Exception("QR not found. Please generate one first.");
         }
+    }
+
+    // Any camera app scanning this URL opens QrScanLanding (/qr/:qrValue) directly in the
+    // browser — no in-app scanner or login required. That page then resolves the value via
+    // /api/public/qr/resolve/{qrValue} and shows Register / Login, or auto-punches if the
+    // student is already logged in.
+    private String buildQRScanUrl(String qrCodeValue) {
+        String base = (frontendUrl == null || frontendUrl.isBlank()) ? "http://localhost:5173" : frontendUrl;
+        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+        return base + "/qr/" + qrCodeValue;
     }
 
     private String generateQRImage(String text) throws Exception {

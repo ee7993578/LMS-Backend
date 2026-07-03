@@ -32,6 +32,34 @@ public class LibraryAdminController {
     private final PaymentSettingsService paymentSettingsService;
     private final PaymentProofService paymentProofService;
     private final PlanUpgradeRequestService planUpgradeRequestService;
+    private final com.learningJWT.LearningTemplate.Services.StudentSubscriptionService studentSubscriptionService;
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PostMapping("/student/{id}/subscription/change")
+    public ResponseEntity<?> changeStudentSubscription(
+            @PathVariable Long id,
+            @RequestBody com.learningJWT.LearningTemplate.Paylod.Request.SubscriptionChangeRequest body) {
+        try {
+            var sub = studentSubscriptionService.changePlan(id, body.getNewPlanId(), body.getMode());
+            return ResponseEntity.ok(studentSubscriptionService.toDTO(sub));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @GetMapping("/student/{id}/subscription/history")
+    public ResponseEntity<?> getStudentSubscriptionHistory(@PathVariable Long id) {
+        try {
+            List<com.learningJWT.LearningTemplate.Paylod.DTO.StudentSubscriptionDTO> history =
+                    studentSubscriptionService.getSubscriptionHistory(id).stream()
+                            .map(studentSubscriptionService::toDTO)
+                            .collect(Collectors.toList());
+            return ResponseEntity.ok(history);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
 
     @PreAuthorize("hasRole('LIBRARY_ADMIN')")
     @PostMapping("/student")
@@ -116,6 +144,45 @@ public class LibraryAdminController {
         }
     }
 
+    // ===================== Plan upgrade payment (Razorpay) =====================
+    // For a paid plan: creates a PENDING request + Razorpay order. Once /plan-requests/verify
+    // confirms payment, the upgrade is applied immediately — no SuperAdmin approval wait.
+    // For a free plan: behaves like the manual flow above (still goes to SuperAdmin).
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PostMapping("/plan-requests/initiate")
+    public ResponseEntity<?> initiatePlanUpgrade(@RequestBody com.learningJWT.LearningTemplate.Paylod.DTO.PlanChangeRequestBody body) {
+        try {
+            return ResponseEntity.ok(planUpgradeRequestService.initiateUpgrade(body.getRequestedPlanId(), body.getNote()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PostMapping("/plan-requests/verify")
+    public ResponseEntity<?> verifyPlanUpgrade(
+            @RequestBody com.learningJWT.LearningTemplate.Paylod.DTO.RazorpayVerifyRequestDTO body) {
+        try {
+            return ResponseEntity.ok(planUpgradeRequestService.verifyUpgrade(body));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasRole('LIBRARY_ADMIN')")
+    @PostMapping("/plan-requests/cancel")
+    public ResponseEntity<?> cancelPlanUpgrade(@RequestBody java.util.Map<String, Object> body) {
+        try {
+            Long paymentRecordId = body.get("paymentRecordId") != null
+                    ? Long.parseLong(body.get("paymentRecordId").toString()) : null;
+            planUpgradeRequestService.cancelUpgrade(paymentRecordId);
+            return ResponseEntity.ok(java.util.Map.of("message", "Cancelled"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
     @PreAuthorize("hasRole('LIBRARY_ADMIN')")
     @PostMapping("/plan")
     public ResponseEntity<PlanDTO> createPlan(@RequestBody PlanDTO planDTO) throws Exception {
@@ -194,6 +261,7 @@ public class LibraryAdminController {
                 entry.put("phone", s.getPhone());
                 entry.put("planName", s.getPlan() != null ? s.getPlan().getName() : null);
                 entry.put("dateOfJoin", s.getDateOfJoin());
+                entry.put("cycleStart", s.getSubscriptionCycleStart());
                 entry.put("expiryDate", expiry);
 
                 if (expiry.isBefore(today)) {

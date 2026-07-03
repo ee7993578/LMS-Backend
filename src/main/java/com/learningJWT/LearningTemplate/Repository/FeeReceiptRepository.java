@@ -17,6 +17,13 @@ public interface FeeReceiptRepository extends JpaRepository<FeeReceipt, Long> {
     @Query("SELECT COALESCE(MAX(r.id), 0) FROM FeeReceipt r WHERE r.library.id = :libraryId")
     long countByLibraryId(@Param("libraryId") Long libraryId);
 
+    // Counts existing receipts for this library in the given year (prefix match on the
+    // "-YYYY-" segment), used to compute the next sequence number per library, per year.
+    @Query("SELECT COUNT(r) FROM FeeReceipt r WHERE r.library.id = :libraryId AND r.receiptNumber LIKE %:yearTag%")
+    long countByLibraryIdAndYearTag(@Param("libraryId") Long libraryId, @Param("yearTag") String yearTag);
+
+    boolean existsByLibraryIdAndReceiptNumber(Long libraryId, String receiptNumber);
+
     Optional<FeeReceipt> findByReceiptNumber(String receiptNumber);
 
     @Query("SELECT r FROM FeeReceipt r WHERE r.fee.feeId = :feeId ORDER BY r.generatedAt DESC")

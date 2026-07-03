@@ -33,6 +33,7 @@ public class SeatServiceImpl implements SeatServices {
     private final FeeRepository feeRepository;
     private final SeatAllocationRepository seatAllocationRepository;
     private final SlotRepository slotRepository;
+    private final com.learningJWT.LearningTemplate.Services.StudentSubscriptionService studentSubscriptionService;
 
     private User getLoggedInAdmin() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -129,7 +130,7 @@ public class SeatServiceImpl implements SeatServices {
         if (!seat.getStudents().contains(student)) seat.getStudents().add(student);
         seatRepository.save(seat);
         studentRepository.save(student);
-        createFeeIfNew(student, plan);
+        studentSubscriptionService.ensureSubscriptionForAllocation(student, plan);
 
         // Create allocation record
         SeatAllocation alloc = SeatAllocation.builder()
@@ -192,7 +193,7 @@ public class SeatServiceImpl implements SeatServices {
         student.setPlan(plan);
         seatRepository.save(seat);
         studentRepository.save(student);
-        createFeeIfNew(student, plan);
+        studentSubscriptionService.ensureSubscriptionForAllocation(student, plan);
 
         SeatAllocation alloc = SeatAllocation.builder()
                 .student(student).seat(seat).plan(plan).slot(slot)
@@ -253,7 +254,7 @@ public class SeatServiceImpl implements SeatServices {
         student.setPlan(plan);
         seatRepository.save(seat);
         studentRepository.save(student);
-        createFeeIfNew(student, plan);
+        studentSubscriptionService.ensureSubscriptionForAllocation(student, plan);
 
         SeatAllocation alloc = SeatAllocation.builder()
                 .student(student).seat(seat).plan(plan)
@@ -426,22 +427,6 @@ public class SeatServiceImpl implements SeatServices {
         return s1.isBefore(e2) && s2.isBefore(e1);
     }
 
-    private void createFeeIfNew(Student student, Plan plan) {
-        if (feeRepository.findByStudentIdAndLibraryId(student.getId(), student.getLibrary().getId()).isEmpty()) {
-            Fee fee = new Fee();
-            fee.setStudent(student);
-            fee.setLibrary(student.getLibrary());
-            fee.setFeeStatus(FeeStatus.UNPAID);
-            fee.setDueDate(LocalDate.now());
-            fee.setMonthId(LocalDate.now().getMonthValue());
-            fee.setPayable(plan.getPrice());
-            fee.setReceive(0);
-            fee.setConcession(0);
-            fee.setBalance(plan.getPrice());
-            fee.setLateFee(0);
-            feeRepository.save(fee);
-        }
-    }
 
     private SeatAllocationDTO toDTO(SeatAllocation a) {
         return SeatAllocationDTO.builder()

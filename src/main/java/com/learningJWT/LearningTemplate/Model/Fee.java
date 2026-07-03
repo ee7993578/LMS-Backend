@@ -32,6 +32,12 @@ public class Fee {
     @JoinColumn(name = "student_id", nullable = false)
     private Student student;
 
+    // Links this invoice to the subscription cycle it belongs to. Nullable for backward
+    // compatibility with rows created before StudentSubscription existed.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subscription_id")
+    private StudentSubscription subscription;
+
     @Column(nullable = false)
     private int monthId;
     @Column(columnDefinition = "date", nullable = false)

@@ -23,6 +23,7 @@ public class FeeServiceImpl implements FeeServices {
 
     private final FeeRepository feeRepository;
     private final UserRepository userRepository;
+    private final PaymentRecordingService paymentRecordingService;
 
     private User getLoggedInAdmin() throws Exception {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -42,39 +43,29 @@ public class FeeServiceImpl implements FeeServices {
     public FeeDTO updateFee(Long studentId, FeeDTO dto) throws Exception {
         Long libraryId = getLoggedInAdmin().getLibrary().getId();
         int maxMonthId = findGreatestMonthId(studentId, libraryId);
-        if (maxMonthId > 0) {
-            Fee fee = feeRepository.findByStudentIdAndLibraryIdAndMonthId(studentId, libraryId, maxMonthId);
-            if (fee == null) throw new Exception("Fee record not found");
-
-            if (dto.getDueDate() != null) fee.setDueDate(dto.getDueDate());
-            if (dto.getPayable() > 0) fee.setPayable(dto.getPayable());
-            fee.setReceive(dto.getReceive());
-            fee.setConcession(dto.getConcession());
-            fee.setLateFee(dto.getLateFee());
-            double balance = (fee.getPayable() + dto.getLateFee()) - (dto.getReceive() + dto.getConcession());
-            fee.setBalance(Math.max(0, balance));
-
-            // Auto-set status based on balance
-            if (dto.getFeeStatus() != null) {
-                fee.setFeeStatus(dto.getFeeStatus());
-            } else {
-                if (fee.getBalance() <= 0) {
-                    fee.setFeeStatus(FeeStatus.PAID);
-                } else if (dto.getReceive() > 0) {
-                    fee.setFeeStatus(FeeStatus.PARTIAL);
-                } else {
-                    fee.setFeeStatus(FeeStatus.UNPAID);
-                }
-            }
-
-            if (fee.getFeeStatus() == FeeStatus.PAID && dto.getReceive() > 0) {
-                fee.setPaymentDate(java.time.LocalDate.now());
-            }
-
-            return FeeMapper.toDTO(feeRepository.save(fee));
-        } else {
+        if (maxMonthId <= 0) {
             throw new Exception("No fee record found for this student");
         }
+        Fee fee = feeRepository.findByStudentIdAndLibraryIdAndMonthId(studentId, libraryId, maxMonthId);
+        if (fee == null) throw new Exception("Fee record not found");
+
+        if (dto.getDueDate() != null) fee.setDueDate(dto.getDueDate());
+        if (dto.getPayable() > 0) fee.setPayable(dto.getPayable());
+
+        // This endpoint sets absolute values (not additive) — same behaviour as before.
+        // We only track the DELTA so PaymentRecordingService knows how much NEW cash was
+        // actually received in this edit, and generates a receipt for exactly that amount.
+        double previousReceive = fee.getReceive();
+        fee.setReceive(dto.getReceive());
+        double delta = dto.getReceive() - previousReceive;
+
+        // recordPayment() will always be called — even when delta <= 0 — so that
+        // due-date/payable/concession/lateFee/status edits still persist. It only generates a
+        // receipt + audit log + notification when delta > 0 (i.e. new money was actually recorded),
+        // which is what fixes the "cash payment recorded manually produces no receipt" bug.
+        return paymentRecordingService.recordPayment(
+                fee, delta, dto.getConcession(), dto.getLateFee(), dto.getFeeStatus(),
+                dto.getPaymentMode(), dto.getTransactionRef(), null, "ADMIN_MANUAL_EDIT");
     }
 
     @Override

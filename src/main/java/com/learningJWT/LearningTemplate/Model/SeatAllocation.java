@@ -59,9 +59,6 @@ public class SeatAllocation {
     @Column(columnDefinition = "datetime")
     private LocalDateTime deallocatedAt;
 
-    @Column(name = "end_date")
-    private java.time.LocalDate endDate;
-
     @ManyToOne
     @JoinColumn(name = "library_id")
     private Library library;
