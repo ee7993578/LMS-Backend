@@ -27,7 +27,7 @@ public class User {
     @Enumerated(EnumType.STRING)
     private UserRole role; // SUPERADMIN, LIBRARY_ADMIN, STUDENT
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     private Library library; // null for SuperAdmin
 
     private  String phone;

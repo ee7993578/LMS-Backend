@@ -104,7 +104,7 @@ public class Library {
     @Column(columnDefinition = "datetime")
     private LocalDateTime gracePeriodStartedAt;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "admin_id", unique = true)
     private User admin;
 
