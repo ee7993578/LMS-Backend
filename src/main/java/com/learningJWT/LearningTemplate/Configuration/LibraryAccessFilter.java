@@ -73,7 +73,7 @@ public class LibraryAccessFilter extends OncePerRequestFilter {
         }
 
         String username = authentication.getName();
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findByUsernameWithLibrary(username).orElse(null);
         if (user == null) {
             filterChain.doFilter(request, response);
             return;
